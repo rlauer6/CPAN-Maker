@@ -1,3 +1,12 @@
+Mon Feb 16 07:57:10 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[1.6.2]:
+	* VERSION: bump
+	* src/main/perl/bin/make-cpan-dist.pl.in
+	- whitespace
+	(write_makefile): add script pod to man pages
+	* src/main/perl/lib/README.md: generated
+
 Mon Oct  6 08:58:58 2025  Rob Lauer  <rlauer6@comcast.net>
 
 	[1.6.1]:
