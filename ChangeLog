@@ -1,3 +1,16 @@
+Tue Mar 17 09:02:03 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[1.7.1]:
+	* CPAN-Maker-1.7.1-ReleaseNotes.md: new
+	* VERSION: bump
+	* Makefile.am
+	(release-notes): new
+	* src/main/bash/bin/make-cpan-dist.in
+	- use new functions below to optimize build
+	(build_module_index): new
+	(module2path_indexed): new
+	(module2path): removed
+
 Mon Mar 16 21:20:07 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[1.7.0]:
