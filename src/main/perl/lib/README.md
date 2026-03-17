@@ -95,7 +95,7 @@ the bash script that actually creates the CPAN distribution.
 
 # VERSION
 
-This documentation refers to version 1.6.2
+This documentation refers to version 1.7.0
 
 # USING THE BASH SCRIPT
 
@@ -287,7 +287,7 @@ project's root directory, **NOT THE CURRENT WORKING DIRECTORY!**_
 
 Example:
 
-    version: 1.6.2
+    version: 1.7.0
     project:
       git: https://github.com/rlauer6/perl-Amazon-Credentials
       description: "AWS credentials discoverer"
@@ -413,6 +413,20 @@ The sections are described below:
     [Module::ScanDeps::Static](https://metacpan.org/pod/Module%3A%3AScanDeps%3A%3AStatic) and is (at least by this author to be a
     bit superior to `scandeps.pl`._
 
+    - recommends
+
+        Fully qualified path to a file listing optional recommended
+        dependencies. Modules listed here will appear under
+        `prereqs.runtime.recommends` in the generated META files, and can be
+        installed with `cpanm --with-recommends`.
+
+        Example `recommends` file:
+
+            Apache::ConfigParser 0
+            Apache2::Request 0
+            Apache2::Upload 0
+            mod_perl2 0
+
     - requires
 
         Fully qualified path to a dependency list for module.
@@ -492,6 +506,17 @@ The sections are described below:
     By default the package will specify the primary module to be packaged
     and any additional modules that were found if the `recurse` option
     was set to 'yes'.
+
+- --recommends
+
+    Name of a file containing optional recommended dependencies. These are
+    modules that enhance functionality but are not required for basic
+    operation. When installed with `cpanm --with-recommends`, these will
+    be installed alongside the required dependencies. If not specified,
+    defaults to a file named `recommends` if present.
+
+    Example use case: optional Apache/mod\_perl dependencies that are only
+    needed in a specific deployment environment.
 
 - resources (optional)
 

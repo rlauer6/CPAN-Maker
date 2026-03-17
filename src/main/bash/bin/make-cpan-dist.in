@@ -47,6 +47,7 @@ Options
 -V                  - version from module
 -x                  - do not cleanup files
 -y                  - name of a file containing PL_FILES entries
+-Y                  - name of the recommends file
 -z                  - dryrun
 -Z                  - resources file
 
@@ -312,7 +313,7 @@ TREE=$(command -v tree);
 PERL=$(command -v perl);
 MAKE_CPAN_DIST=$(command -v make-cpan-dist.pl)
 
-while getopts "?Aa:b:B:cC:d:D:E:e:f:F:g:hH:kl:L:m:M:no:OpP:r:R:sS:t:T:vV:xy:zZ:" arg "$@"; do
+while getopts "?Aa:b:B:cC:d:D:E:e:f:F:g:hH:kl:L:m:M:no:OpP:r:R:sS:t:T:vV:xY:y:zZ:" arg "$@"; do
 
     case "${arg}" in
 
@@ -456,6 +457,9 @@ while getopts "?Aa:b:B:cC:d:D:E:e:f:F:g:hH:kl:L:m:M:no:OpP:r:R:sS:t:T:vV:xy:zZ:"
         y)
             PL_FILES="$OPTARG";
             ;;
+        Y)
+            recommends_file="$OPTARG";
+            ;;
 
         z)
             DRYRUN="--dryrun";
@@ -570,6 +574,17 @@ if [[ -n "$build_requires" ]]; then
   fi
 fi
 
+if [[ -n "$recommends_file" ]]; then
+  if [[ "$recommends_file" != /* ]]; then
+      recommends_file="$PROJECT_HOME/$recommends_file"
+  fi
+
+  RECOMMENDS="--recommends $recommends_file"
+  if ! [[ -e "$recommends_file" ]]; then
+     FATAL_ERROR "$recommends_file not found";
+  fi
+fi
+
 if [[ -n "$dependency_file" ]]; then
     if [[ -z "$CORE_MODULES" ]]; then
         CORE_MODULES="--no-core-modules"
@@ -589,6 +604,7 @@ echo "        PROJECT HOME: $PROJECT_HOME"
 echo "     DEPENDENCY FILE: $dependency_file"
 echo "TEST DEPENDENCY FILE: $test_dependency_file"
 echo "      BUILD REQUIRES: $build_requires"
+echo "          RECOMMENDS: $recommends_file"
 
 # typical directory within project tree containing Perl modules
 perl5libdir=${perl5libdir:-src/main/perl/lib}
@@ -907,6 +923,7 @@ cmd=(
     "$MAKE_CPAN_DIST"
     $CORE_MODULES
     $BUILD_REQUIRES
+    $RECOMMENDS
     -r "$dependency_file"
     -e $exe_files
     $TEST_REQUIRES

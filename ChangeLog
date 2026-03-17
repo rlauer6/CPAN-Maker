@@ -1,3 +1,12 @@
+Mon Mar 16 21:20:07 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[1.7.0]:
+	* VERSION: bump
+	* src/main/bash/bin/make-cpan-dist.in: add -Y recommends option
+	* src/main/perl/bin/make-cpan-dist.pl.in: add --recommends option
+	* src/main/perl/lib/CPAN/Maker.pm.in: pod update
+	* src/main/perl/lib/README.md: generated
+
 Mon Feb 16 07:57:10 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[1.6.2]:
