@@ -1,4 +1,4 @@
-name: make-cpan-dist
+name: CPAN-Maker
 on:
   push:
     branches: [ master ]
@@ -6,9 +6,9 @@ jobs:
   test-module:
     runs-on: ubuntu-latest
     container:
-      image: perl:5.40-bookworm
+      image: debian:trixie
     steps:
       - uses: actions/checkout@v4
 
       - name: build
-        run: ./build-github
+        run: ./build-github https://github.com/rlauer6/CPAN-Maker.git

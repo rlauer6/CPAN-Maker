@@ -1,0 +1,6 @@
+Module::ScanDeps::Static
+Module::CPANfile
+Markdown::Render
+YAML::Tiny
+Text::CSV_XS
+Pod::Markdown

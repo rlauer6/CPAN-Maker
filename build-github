@@ -1,48 +1,27 @@
 #!/bin/bash
 # -*- mode: sh; -*-
 #  build script for GitHub actions
+#!/usr/bin/env bash
+#-*- mode: sh; -*-
 
-YUM=$(command -v yum)
-APT=$(command -v apt-get)
-DNF=$(command -v dnf)
-CPANM=$(command -v cpanm)
+REPO="$1"
 
-set -ex
+set -euo pipefail
+set -x
 
-if test -n "$APT"; then
-    apt-get install -y git gcc make automake curl autoconf
-elif test -n "$DNF"; then
-    dnf install -y --allowerasing gcc git curl automake make autoconf perl-core tar
-elif test -n "$YUM"; then
-    yum install -y gcc git curl automake make autoconf perl-core tar
-fi
+apt-get update && apt-get install -y \
+  git gcc make automake autoconf perl curl ca-certificates
 
-if test -z "$CPANM"; then
-  curl -L https://cpanmin.us | perl - App::cpanminus
-fi
+curl -L https://cpanmin.us | perl - App::cpanminus 
 
-# Perl module dependencies
-for a in $(cat cpan/*requires | perl -ne 'chomp; ($a,$b)=split/\s+/; printf "%s%s\n", $a, $b ne "0" ? "\@$b" : "";'); do \
-    cpanm -n -v $a; \
+mkdir /workdir
+git clone $REPO /workdir
+cd /workdir
+
+for a in $(cat /workdir/build-requires); do
+    cpanm -n -v $a;
 done
 
-./bootstrap
-./configure --prefix=/usr/local --with-perl5libdir
+./bootstrap && ./configure
+make && cd cpan && make cpan
 
-if make; then
-    make install
-else
-    echo "ERROR: make failed"
-    false
-fi
-
-cd cpan
-PATH=/usr/local/bin:$PATH make cpan
-if test -e CPAN-Maker-*.tar.gz; then
-    cpanm -n -v CPAN-Maker-*.tar.gz
-    perl -MFile::Process -e 'print $File::Process::VERSION;'
-    perl -MCPAN::Maker -e 'print $CPAN::Maker::VERSION;'
-else
-    echo "ERROR: make cpan failed"
-    false
-fi

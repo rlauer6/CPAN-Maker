@@ -23,10 +23,10 @@ extra-files:
       - ChangeLog
       - README.md
 resources:
-  homepage: 'http://github.com/rlauer6/make-cpan-dist'
+  homepage: 'http://github.com/rlauer6/CPAN-Maker'
   bugtracker:
-    web: 'http://github.com/rlauer6/make-cpan-dist/issues'
+    web: 'http://github.com/rlauer6/CPAN-Maker/issues'
   repository:
-    url: 'git://github.com/rlauer6/make-cpan-dist.git'
-    web: 'http://github.com/rlauer6/make-cpan-dist'
+    url: 'git://github.com/rlauer6/CPAN-Maker.git'
+    web: 'http://github.com/rlauer6/CPAN-Maker'
     type: 'git'

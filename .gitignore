@@ -1,3 +1,6 @@
+**#
+*.diffs
+*.lst
 **/*.tar.gz
 **/*.3man
 **/*.1man

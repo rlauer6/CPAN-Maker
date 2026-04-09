@@ -1,4 +1,4 @@
-SUBDIRScd = .
+SUBDIRS = .
 
 include $(top_srcdir)/directories.inc
 

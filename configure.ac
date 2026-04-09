@@ -147,6 +147,8 @@ ads_PERL_MODULE([Text::CSV_XS], [], [])
 ads_PERL_MODULE([Pod::Checker], [], [])
 ads_PERL_MODULE([Pod::Find], [], [])
 ads_PERL_MODULE([Pod::Markdown], [], [])
+ads_PERL_MODULE([Module::CPANfile], [], [])
+ads_PERL_MODULE([Module::ScanDeps::Static], [], [])
 ads_PERL_MODULE([Markdown::Render], [], [1.60.1])
 
 perl5libdir=\${datadir}/perl5
