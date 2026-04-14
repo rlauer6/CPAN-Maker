@@ -72,11 +72,12 @@ necessary options.  When [using the bash script](#using-the-bash-script), it wil
 
 This script is typically called with the `--buildspec` option
 specifying a YAML file that contains the options for building a CPAN
-distribution.  Calling this script directly will only result in a
-`Makefile.PL` being written to STDOUT.
+distribution.  Calling this script without the `--buildspec` option
+will only result in a `Makefile.PL` being written to STDOUT.
 
-When invoked with a buildspec it will parse the YAML file and call
-the `make-cpan-dist` bash script that actually creates the CPAN distribution.
+When invoked with a buildspec it will parse the YAML file and call the
+`make-cpan-dist` bash script that actually creates the CPAN
+distribution.
 
 See man CPAN::Maker for more details.
 
@@ -84,26 +85,26 @@ See man CPAN::Maker for more details.
 
 - PRESERVE\_MAKEFILE
 
-    Set this environment variable to a true value if you want
-    the script to preserve the `Makefile.PL`. It will be copied to your
-    current working directory.
+    Set this environment variable to a true value if you want the script
+    to preserve the `Makefile.PL` after it builds the distribution
+    (useful for inspecting the result of the build). It will be copied to
+    your current working directory.
 
 - SKIP\_TESTS
 
-    Set this environment variable a true value if you want
-    the script to preserve the `Makefile.PL`. It will be copied to your
+    Set this environment variable to skip tests during the build.
 
 - DEBUG
 
-    Set this environment variable to set the debug level to verbose. The
-    bash script will echo all commands run. This is useful for debugging
-    problems that might arise if you "go off script"
+    Set this environment variable to enable debug mode. The bash script
+    will echo all commands run. This is useful for debugging unexpected
+    output or problems with the final distribution.
 
     See https://github.com/rlauer6/CPAN-Maker.git for more documentation.
 
 # VERSION
 
-This documentation refers to version 1.7.2
+This documentation refers to version 1.7.3
 
 # USING THE BASH SCRIPT
 
@@ -295,7 +296,7 @@ project's root directory, **NOT THE CURRENT WORKING DIRECTORY!**_
 
 Example:
 
-    version: 1.7.2
+    version: 1.7.3
     project:
       git: https://github.com/rlauer6/perl-Amazon-Credentials
       description: "AWS credentials discoverer"

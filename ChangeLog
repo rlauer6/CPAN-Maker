@@ -1,3 +1,15 @@
+Tue Apr 14 06:37:41 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[1.7.3]:
+	* release-notes-1.7.3.md: new
+	* README.md: generated
+	* README.md.in: modified
+	* VERSION: bump
+	* src/main/bash/bin/make-cpan-dist.in
+	- avoid use of ExtUtils::Manifest default skip list
+	* src/main/perl/lib/CPAN/Maker.pm.in: POD tweaks
+	* src/main/perl/lib/README.md: generated
+
 Thu Apr  9 11:05:19 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[1.7.2]:
