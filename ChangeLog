@@ -1,3 +1,12 @@
+Wed Apr 15 05:29:07 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[1.7.5]:
+	* release-notes-1.7.5.md: new
+	* VERSION: bump
+	* src/main/bash/bin/make-cpan-dist.in
+	- add Makefile$ to skip list, fixes busted 1.7.4
+	* src/main/perl/lib/README.md: generated
+
 Tue Apr 14 07:26:48 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[1.7.4]:

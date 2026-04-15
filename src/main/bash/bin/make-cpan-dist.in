@@ -1019,8 +1019,7 @@ else
     
     if $PERL Makefile.PL; then
         # avoid ExtUtils::Manifest use of its default skip list
-        echo Makefile >MANIFEST.SKIP
-        echo MANIFEST.SKIP >> MANIFEST.SKIP
+        echo 'Makefile$' >MANIFEST.SKIP
         echo MYMETA.json >> MANIFEST.SKIP
         echo MYMETA.yml >> MANIFEST.SKIP
 
