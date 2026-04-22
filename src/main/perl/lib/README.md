@@ -104,7 +104,7 @@ See man CPAN::Maker for more details.
 
 # VERSION
 
-This documentation refers to version 1.7.5
+This documentation refers to version 1.8.0
 
 # USING THE BASH SCRIPT
 
@@ -296,7 +296,7 @@ project's root directory, **NOT THE CURRENT WORKING DIRECTORY!**_
 
 Example:
 
-    version: 1.7.5
+    version: 1.8.0
     project:
       git: https://github.com/rlauer6/perl-Amazon-Credentials
       description: "AWS credentials discoverer"
@@ -323,6 +323,7 @@ Example:
         - file
     provides: provides
     postamble: postamble
+    man-links:
     resources:
       homepage: 'http://github.com/rlauer6/perl-Amazon-API'
       bugtracker:
@@ -395,6 +396,20 @@ The sections are described below:
 
         install::
                # do something
+
+- man-links
+
+    Create symbolic links for executables to module man pages. Typically
+    used to create symlinks to modulinos. For example if `Foo::Bar` is
+    implemented as a modulino and `foo-bar` is the wrapper script, then
+    adding:
+
+        man-links:
+          - foo-bar: Foo::Bar
+
+    ...would allow `man foo-bar` to bring up the man page for `Foo::Bar`.
+    The target module must contain POD - if no POD is found the link is
+    silently skipped.
 
 - include-version
 
