@@ -2,6 +2,8 @@ SUBDIRS = .
 
 include $(top_srcdir)/directories.inc
 
+NO_ECHO ?= @
+
 perlrun = @ENV@ perl
 
 perlwc = @ENV@ perl
@@ -40,9 +42,9 @@ PERLINCLUDE = \
     -I $(perl5libdir)
 
 $(GPERLSCRIPTS): % : %.in
-	test -d "$$(dirname "$@")" || $(INSTALL) -d "$$(dirname "$@")"
-	$(do_subst) $< > $@
-	$(perlwc) $(PERLINCLUDE) -wc $@ || { rm $@ && exit 1; }
+	$(NO_ECHO)test -d "$$(dirname "$@")" || $(INSTALL) -d "$$(dirname "$@")"; \
+	$(do_subst) $< > $@; \
+	$(perlwc) $(PERLINCLUDE) -wc $@ || { rm $@ && exit 1; }; \
 	test -e $@ && chmod +x $@
 
 all:
@@ -50,7 +52,7 @@ all:
 CLEANFILES = $(GPERLSCRIPTS) $(G1MANPAGES)
 
 $(G1MANPAGES): %.1man : %.pl
-	target_name="$@" ;\
+	$(NO_ECHO)target_name="$@" ;\
 	tname=$$(echo "$${target_name}" | sed -e 's/\.1man$$//') ;\
 	"$(POD2MAN)" $< \
 	--center="$(PACKAGE)" \

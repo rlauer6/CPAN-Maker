@@ -2,6 +2,8 @@ SUBDIRS = .
 
 include $(top_srcdir)/directories.inc
 
+NO_ECHO ?= @
+
 perlrun = @ENV@ @PERL@
 
 perlwc = @ENV@ @PERL@
@@ -74,15 +76,15 @@ PERLINCLUDE = \
     -I $(perl5libdir)
 
 %.pm: %.pm.in
-	test -d "$$(dirname "$@")" || $(INSTALL) -d "$$(dirname "$@")"
+	$(NO_ECHO)test -d "$$(dirname "$@")" || $(INSTALL) -d "$$(dirname "$@")"
 	$(do_subst) $< > $@
 	$(perlwc) $(PERLINCLUDE) -wc $@ || { rm $@ && exit 1; }
 
 $(GFILE_PERLMODULES): File/Process/Utils.pm
 
 CPAN/Maker/Utils.pm: CPAN/Maker/Utils.pm.in CPAN/Maker/Constants.pm
-	test -d "$$(dirname "$@")" || $(INSTALL) -d "$$(dirname "$@")"
-	$(do_subst) $< > $@
+	$(NO_ECHO)test -d "$$(dirname "$@")" || $(INSTALL) -d "$$(dirname "$@")"; \
+	$(do_subst) $< > $@; \
 	$(perlwc) $(PERLINCLUDE) -wc $@ || { rm $@ && exit 1; }
 
 all: $(GPERLMODULES) $(G3MANPAGES) README.md
@@ -90,8 +92,7 @@ all: $(GPERLMODULES) $(G3MANPAGES) README.md
 CLEANFILES = $(GPERLMODULES)
 
 $(G3MANPAGES): %.3man : %.pm
-	podchecker $<
-	set -x; \
+	$(NO_ECHO)podchecker $<; \
 	target_name="$@"; \
 	echo $$target_name; \
 	tname=$$(echo "$${target_name}" | sed -e 's/\.3man$$//') ;\
@@ -117,7 +118,7 @@ clean-generated-man-pages:
 manpages: $(G3MANPAGES)
 
 README.md: CPAN/Maker.pm
-	pod2markdown $< > $@
+	$(NO_ECHO)pod2markdown $< > $@
 
 AUTOMAKE_OPTIONS = no-installman
 

@@ -1,8 +1,6 @@
 #!/bin/bash
 # -*- mode: sh; -*-
 #  build script for GitHub actions
-#!/usr/bin/env bash
-#-*- mode: sh; -*-
 
 REPO="$1"
 
@@ -14,14 +12,15 @@ apt-get update && apt-get install -y \
 
 curl -L https://cpanmin.us | perl - App::cpanminus 
 
-mkdir /workdir
-git clone $REPO /workdir
-cd /workdir
+git clone $REPO
+WORKDIR=$(basename $REPO .git)
+cd $WORKDIR
 
-for a in $(cat /workdir/build-requires); do
+for a in $(cat build-requires); do
     cpanm -n -v $a;
 done
 
 ./bootstrap && ./configure
-make && cd cpan && make cpan
+DEBUG=1 make
+cd cpan && make cpan
 

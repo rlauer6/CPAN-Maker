@@ -1,3 +1,18 @@
+Mon Apr 27 12:34:45 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[1.8.1]:
+	* VERSION: bump
+	* release-notes-1.8.1.md: new
+	* src/main/bash/bin/make-cpan-dist.in
+	- fix logging
+	- set -euo pipefail to make sure build fail in pipeline properly
+	* src/main/perl/lib/README.md: generated
+	* src/main/perl/bin/Makefile.am
+	(NO_ECHO): new
+	* src/main/perl/lib/Makefile.am: likewise
+	* src/main/perl/lib/File/Process.pm.in: pod whitespace
+	* src/main/perl/lib/File/Process/Utils.pm.in: likewise
+
 Wed Apr 22 16:04:33 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[1.8.0]:

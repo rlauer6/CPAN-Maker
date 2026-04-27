@@ -24,7 +24,7 @@ our %DEFAULT_PROCESSORS = (
 
 use parent qw(Exporter);
 
-our @EXPORT = qw( process_file );  ## no critic (ProhibitAutomaticExportation)
+our @EXPORT = qw( process_file ); ## no critic (ProhibitAutomaticExportation)
 
 our @EXPORT_OK = qw(
   post
@@ -119,7 +119,7 @@ sub _pre {
     $args->{file} = ref $fh;  # GLOB
   }
   else {
-    open $fh, '<', $file      ## no critic (RequireBriefOpen)
+    open $fh, '<', $file ## no critic (RequireBriefOpen)
       or croak 'could not open ' . $file . $NL;
 
     $args->{'file'} = $file;
@@ -225,31 +225,31 @@ sub _post {
 }
 
 ########################################################################
-sub post {  ## no critic [Subroutines::RequireArgUnpacking]
+sub post { ## no critic [Subroutines::RequireArgUnpacking]
 ########################################################################
   return $_[2]->{default_processors}->{post}->(@_);
 }
 
 ########################################################################
-sub filter {  ## no critic [Subroutines::RequireArgUnpacking]
+sub filter { ## no critic [Subroutines::RequireArgUnpacking]
 ########################################################################
   return $_[2]->{default_processors}->{filter}->(@_);
 }
 
 ########################################################################
-sub pre {  ## no critic [Subroutines::RequireArgUnpacking]
+sub pre { ## no critic [Subroutines::RequireArgUnpacking]
 ########################################################################
   return $_[1]->{default_processors}->{pre}->(@_);
 }
 
 ########################################################################
-sub process {  ## no critic [Subroutines::RequireArgUnpacking]
+sub process { ## no critic [Subroutines::RequireArgUnpacking]
 ########################################################################
   return $_[2]->{default_processors}->{process}->(@_);
 }
 
 ########################################################################
-sub next_line {  ## no critic [Subroutines::RequireArgUnpacking]
+sub next_line { ## no critic [Subroutines::RequireArgUnpacking]
 ########################################################################
   return $_[2]->{default_processors}->{next_line}->(@_);
 }
@@ -707,11 +707,11 @@ method for processing CSV files.
  use File::Process qw(pre process_file);
  use Text::CSV_XS;
  use Data::Dumper;
- 
+
  my $csv = Text::CSV_XS->new;
-  
+
  my $file = shift;
- 
+
  my ($csv_lines) = process_file(
    $file,
    csv   => $csv,
@@ -719,14 +719,14 @@ method for processing CSV files.
    has_headers => 1,
    pre   => sub {
      my ( $fh, $args ) = @_;
-  
+
      my ($fh, $all_lines) = pre($file, $args);
- 
+
      if ( $args->{'has_headers'} ) {
        my @column_names = $args->{csv}->getline($fh);
        $args->{csv}->column_names(@column_names);
      }
-  
+
      return ($fh, $all_lines);
    },
    next_line => sub {

@@ -53,7 +53,7 @@ sub is_code   { push @_, 'CODE';  goto &_is_type; }
 ########################################################################
 
 ########################################################################
-sub is_hash {  ## no critic (RequireArgUnpacking)
+sub is_hash { ## no critic (RequireArgUnpacking)
 ########################################################################
   my $result = _is_hash( $_[0] );
 
@@ -64,7 +64,7 @@ sub is_hash {  ## no critic (RequireArgUnpacking)
 }
 
 ########################################################################
-sub is_array {  ## no critic (RequireArgUnpacking)
+sub is_array { ## no critic (RequireArgUnpacking)
 ########################################################################
   my $result = _is_array( $_[0] );
 
@@ -295,7 +295,7 @@ index of the array tha that corresponds to the index in the input you
 wish to process.
 
   my %hooks = ( col1 => sub { uc shift } );
-              
+
   my $obj = process_csv(
     'foo.csv',
     column_names => [],
