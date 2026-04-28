@@ -1,3 +1,11 @@
+Tue Apr 28 06:29:29 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[1.8.2]:
+	* VERSION: bump
+	* src/main/perl/lib/README.md: generated
+	* src/main/bash/bin/make-cpan-dist.in
+	- initialize some variables
+
 Mon Apr 27 12:34:45 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[1.8.1]:

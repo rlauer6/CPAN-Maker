@@ -350,7 +350,7 @@ function scan() {
 function executables() {
 ########################################################################
     executables="$1";
-    filelist="$2";
+    filelist="${2-}";
 
     if [[ -n "$filelist" ]] && [[ -n "$executables" ]]; then
         if [[ -d "${PROJECT_HOME}/$executables" ]]; then
@@ -761,10 +761,11 @@ if [ ! "$recurse_directories" = "yes" ]; then
     maxdepth='-maxdepth 1'
 fi
 
-all_files=$(mktemp)
+all_files="$(mktemp)"
 executables $bindir $all_files
 EXEC_PATH=$bindir
 
+scriptsdir="${scriptsdir:-}"
 executables $scriptsdir $all_files
 SCRIPTS_PATH="$scriptsdir"
 
@@ -783,11 +784,13 @@ fi
 
 ########################################################################
 # resources
+RESOURCES="${RESOURCES:-}"
+
 if [[  -e "resources" ]]; then
     RESOURCES="resources"
 elif [[ -z "$RESOURCES" ]]; then
     if [[ -d "$PROJECT_HOME/.git" ]]; then
-        URL="$(git config --get remote.origin.web)";
+        URL="$(git config --get remote.origin.web || true)";
         resources=$(mktemp)
 
         URL=$URL perl -MJSON -e \
@@ -1038,7 +1041,10 @@ PL_FILES="${PL_FILES:-}"
 EXTRA_OPTIONS="${EXTRA_OPTIONS:-}"
 RECOMMENDS="${RECOMMENDS:-}"
 TEST_REQUIRES="{TEST_REQUIRES:-}"
+BUILD_REQUIRES="{BUILD_REQUIRES:-}"
 REQUIRE_VERSION="${REQUIRE_VERSION:-}"
+RECURSE="${RECURSE:-}"
+MODULE_PATH="${MODULE_PATH:-}"
 
 [[  -n "$EXEC_PATH"    ]] && EXEC_PATH="--exec-path=$EXEC_PATH"
 [[  -n "$SCRIPTS_PATH" ]] && SCRIPTS_PATH="--scripts-path=$SCRIPTS_PATH"
