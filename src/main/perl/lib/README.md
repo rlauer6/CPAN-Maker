@@ -104,7 +104,7 @@ See man CPAN::Maker for more details.
 
 # VERSION
 
-This documentation refers to version 1.8.2
+This documentation refers to version 1.8.3
 
 # USING THE BASH SCRIPT
 
@@ -296,7 +296,7 @@ project's root directory, **NOT THE CURRENT WORKING DIRECTORY!**_
 
 Example:
 
-    version: 1.8.2
+    version: 1.8.3
     project:
       git: https://github.com/rlauer6/perl-Amazon-Credentials
       description: "AWS credentials discoverer"

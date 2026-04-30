@@ -1,3 +1,14 @@
+Thu Apr 30 06:06:16 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[1.8.3]:
+	* VERSION: bump
+	* release-notes-1.8.3.md: new
+	* src/main/bash/bin/make-cpan-dist.in
+	- use make_temp throughout to create temp files to centralize cleanup
+	(make_temp): new
+	(cleanup): refactored
+	* src/main/perl/lib/README.md: generated
+
 Tue Apr 28 06:29:29 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[1.8.2]:
