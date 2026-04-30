@@ -1,6 +1,6 @@
 Module::ScanDeps::Static
 Module::CPANfile
-Markdown::Render
+Markdown::Render@1.0.4
 YAML::Tiny
 Text::CSV_XS
 Pod::Markdown

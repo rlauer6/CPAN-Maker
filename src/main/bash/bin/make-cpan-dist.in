@@ -734,10 +734,12 @@ if [[ -s "$EXTRA" ]]; then
 
         if [[ -f "${PROJECT_HOME}/$a" ]]; then
             if [[ -n "$b" ]]; then
-                dir=$(dirname $b)
+                dir="$(dirname $b)"
                 test -d $builddir/$dir || mkdir -p $builddir/$dir
+            else
+                dir=""
             fi
-            
+
             cp ${PROJECT_HOME}/$a $builddir/$dir
         else
             FATAL_ERROR "file [${PROJECT_HOME}/$a] not found?"

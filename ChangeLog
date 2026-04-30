@@ -1,3 +1,15 @@
+Thu Apr 30 17:17:28 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[1.8.4]:
+	* VERSION: bump
+	* src/main/bash/bin/make-cpan-dist.in
+	- yet another unbound variable
+	* src/main/perl/lib/README.md: generated
+	* .github/workflows/build.yml: add git
+	* build-github: generic version
+	* build-requires: pin version of Markdown::Render
+	* TODO: new
+
 Thu Apr 30 06:06:16 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[1.8.3]:

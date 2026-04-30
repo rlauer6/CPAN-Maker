@@ -1,26 +1,79 @@
-#!/bin/bash
+#!/usr/bin/env bash
 # -*- mode: sh; -*-
-#  build script for GitHub actions
+
+########################################################################
+# - GitHub Actions CI script
+# - You can also run locally in a Docker container to verify build
+#
+#   docker run --rm -v "$(pwd)/build-github:/build-github:ro" debian:trixie \
+#      -e GITHUB_REF_NAME=dev \
+#      bash /build-github https://github.com/rlauer6/Amazon-S3-Lite.git
+#
+########################################################################
+
+########################################################################
+function install_deps {
+########################################################################
+# Regenerate cpanfile for CI - includes build-requires and test-requires
+# in addition to runtime requires. The committed cpanfile only contains
+# runtime dependencies for consumer installs.
+
+    all_requires=$(mktemp)
+
+    trap 'rm -f "$all_requires"' EXIT
+
+    test -e requires && cat requires >> $all_requires
+    test -e build-requires && cat build-requires >> $all_requires
+    test -e test-requires && cat test-requires >> $all_requires
+
+    perl -ne 'chomp;($m,$v)=split /(?:[@]|\s+)/,$_,2; $v //= q{}; $m=~s/^\+//; $v = $v eq q{0} ? q{} : $v; print qq{requires "$m", "$v";\n};' \
+         $all_requires | sort -u  >cpanfile
+
+    cpanm --installdeps .
+}
+
+########################################################################
+# main script starts here
+########################################################################
 
 REPO="$1"
 
 set -euo pipefail
 set -x
 
+# libexpat, libssl, libzip required for building certain CPAN
+# distributions like LibXML::XML, Net::SSLeay, etc.
+# TBD: might be better to create build-libs file?
+LIB_DEPS=(libexpat-dev libssl-dev libzip-dev autoconf automake make)
+
 apt-get update && apt-get install -y \
-  git gcc make automake autoconf perl curl ca-certificates
+  git \
+  gcc \
+  make \
+  perl \
+  curl \
+  ca-certificates \
+  "${LIB_DEPS[@]}"
 
 curl -L https://cpanmin.us | perl - App::cpanminus 
 
-git clone $REPO
-WORKDIR=$(basename $REPO .git)
-cd $WORKDIR
+MIRRORS=(--mirror https://cpan.openbedrock.net/orepan2 --mirror https://cpan.metacpan.org)
+export PERL_CPANM_OPT="-n -v ${MIRRORS[@]} --mirror-only"
 
-for a in $(cat build-requires); do
-    cpanm -n -v $a;
-done
+if [[ -n "$REPO" ]]; then
+    git clone $REPO
+
+    GITHUB_WORKSPACE=$(basename $REPO .git)
+    cd $GITHUB_WORKSPACE
+fi
+
+if [[ -n "${GITHUB_REF_NAME:-}" ]]; then
+    git checkout "$GITHUB_REF_NAME"
+fi
+
+install_deps
 
 ./bootstrap && ./configure
-DEBUG=1 make
+make
 cd cpan && make cpan
 
