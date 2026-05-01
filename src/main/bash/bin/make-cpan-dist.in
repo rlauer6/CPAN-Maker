@@ -937,7 +937,7 @@ fi
 
 depfile=$(make_temp)
 
-awk '{print $1}' ${workdir}/requires.tmp | sort -u | grep -v '^perl' > $depfile
+awk '{print $1}' ${workdir}/requires.tmp | sort -u | grep -v '^perl' > $depfile || true
 
 # remove provided files from required list
 

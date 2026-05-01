@@ -1,3 +1,17 @@
+Fri May  1 06:52:50 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[1.8.5]:
+	* release-notes-1.8.5.md: new
+	* VERSION: bump
+	* src/main/perl/lib/README.md: generated
+	* src/main/bash/bin/make-cpan-dist.in
+	- grep ... || true
+	* src/main/perl/bin/make-cpan-dist.pl.in
+	(parse_path)
+	- do not add option if directory does not exist
+	(check_path)
+	- warn, don't die when path in buildspec.yml does not exist
+
 Thu Apr 30 17:17:28 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[1.8.4]:

@@ -900,23 +900,23 @@ sub parse_path {
 
     # -e
     if ( $path->{exe_files} ) {
-      check_path( $project_root, $path->{exe_files}, 'exe_files' );
-
-      $args{e} = $path->{exe_files};
+      if ( check_path( $project_root, $path->{exe_files}, 'exe_files' ) ) {
+        $args{e} = $path->{exe_files};
+      }
     }
 
     # -S
     if ( $path->{scripts} ) {
-      check_path( $project_root, $path->{scripts}, 'scripts' );
-
-      $args{S} = $path->{scripts};
+      if ( check_path( $project_root, $path->{scripts}, 'scripts' ) ) {
+        $args{S} = $path->{scripts};
+      }
     }
 
     # -t
     if ( $path->{tests} ) {
-      check_path( $project_root, $path->{tests}, 'tests' );
-
-      $args{t} = $path->{tests};
+      if ( check_path( $project_root, $path->{tests}, 'tests' ) ) {
+        $args{t} = $path->{tests};
+      }
     }
   }
 
@@ -933,8 +933,12 @@ sub check_path {
 
   my $exists = $path =~ /^\//xsm ? -d $path : -d "$project_root/$path";
 
-  die "no such path: [$path] - must be absolute or relative to $project_root\n"
-    if !$exists;
+  if ( !$exists ) {
+    warn "WARNING: ** `$path` does not exist or is inaccessible.\n";
+    warn "WARNING: ** paths should be absolute or relative to $project_root\n";
+    warn "WARNING: ** Consider removing entry from your buildspec.yml file if this is expected.\n";
+    return $FALSE;
+  }
 
   return $TRUE;
 }
