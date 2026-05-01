@@ -1,0 +1,28 @@
+---
+project:
+  description: CPAN::Maker
+  author:
+    name: Rob Lauer
+    mailto: rclauer@gmail.com
+pm_module: CPAN::Maker
+min-perl-version: 5.010
+dependencies:
+  requires: requires
+  test_requires: test-requires
+path:
+  pm_module: lib
+  exe_files: bin
+  tests: t
+extra-files:
+  - ChangeLog
+  - share:
+      - README.md
+resources:
+  bugtracker:
+    mailto: rclauer@gmail.com
+    web: https://github.com/rlauer6/CPAN-Maker/issues
+  homepage: https://github.com/rlauer6/CPAN-Maker
+  repository:
+    type: git
+    url: git@github.com:rlauer6/CPAN-Maker.git
+    web: https://github.com/rlauer6/CPAN-Maker

@@ -1,9 +1,0 @@
-IO::Scalar 2.111
-JSON 0
-Readonly 0 
-Text::CSV_XS 0
-List::Util 1.33
-Module::ScanDeps::Static 0
-YAML::Tiny 0
-Log::Log4perl 0
-Pod::Find 0

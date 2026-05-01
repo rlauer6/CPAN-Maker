@@ -1,0 +1,12 @@
+CLI::Simple 2.0.0
+CLI::Simple::Constants 2.0.0
+CLI::Simple::Utils 2.0.0
+IO::Scalar 2.113
+JSON 4.10
+Log::Log4perl::Level 0
+Readonly 2.05
+Role::Tiny 2.002004
+Role::Tiny::With 2.002004
+Text::CSV_XS 1.61
+YAML 1.31
+version 0.9930
