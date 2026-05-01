@@ -16,8 +16,7 @@ ax_perl5_extra_includes = @ax_perl5_extra_includes@
 # this is where we will install perl scripts
 libexecdir = @libexecdir@
 
-PERLSCRIPTS = \
-    make-cpan-dist.pl.in
+PERLSCRIPTS =
 
 GPERLSCRIPTS = $(PERLSCRIPTS:.pl.in=.pl)
 G1MANPAGES = $(GPERLSCRIPTS:.pl=.1man)

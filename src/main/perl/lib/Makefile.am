@@ -22,6 +22,10 @@ FILE_PROCESS_PERLMODULES = \
 CPAN_PERLMODULES = \
     CPAN/Maker.pm.in
 
+CPAN_MAKER_ROLE_PERLMODULES = \
+    CPAN/Maker/Role/ModuleUtils.pm.in \
+    CPAN/Maker/Role/FileUtils.pm.in
+
 CPAN_MAKER_PERLMODULES = \
     CPAN/Maker/Utils.pm.in \
     CPAN/Maker/Constants.pm.in
@@ -30,14 +34,16 @@ PERLMODULES = \
     $(FILE_PERLMODULES) \
     $(FILE_PROCESS_PERLMODULES) \
     $(CPAN_PERLMODULES) \
-    $(CPAN_MAKER_PERLMODULES)
+    $(CPAN_MAKER_PERLMODULES) \
+    $(CPAN_MAKER_ROLE_PERLMODULES)
 
 GFILE_PERLMODULES         = $(FILE_PERLMODULES:.pm.in=.pm)
 GFILE_PROCESS_PERLMODULES = $(FILE_PROCESS_PERLMODULES:.pm.in=.pm)
 
-GCPAN_MAKER_PERLMODULES   = $(CPAN_MAKER_PERLMODULES:.pm.in=.pm)
-GCPAN_PERLMODULES         = $(CPAN_PERLMODULES:.pm.in=.pm)
-GPERLMODULES              = $(PERLMODULES:.pm.in=.pm)
+GCPAN_MAKER_PERLMODULES        = $(CPAN_MAKER_PERLMODULES:.pm.in=.pm)
+GCPAN_MAKER_ROLE_PERLMODULES   = $(CPAN_MAKER_ROLE_PERLMODULES:.pm.in=.pm)
+GCPAN_PERLMODULES              = $(CPAN_PERLMODULES:.pm.in=.pm)
+GPERLMODULES                   = $(PERLMODULES:.pm.in=.pm)
 
 G3MANPAGES = $(GPERLMODULES:.pm=.3man)
 
@@ -82,10 +88,9 @@ PERLINCLUDE = \
 
 $(GFILE_PERLMODULES): File/Process/Utils.pm
 
+CPAN/Maker.pm: $(GCPAN_MAKER_PERLMODULES) $(GCPAN_MAKER_ROLE_PERLMODULES) CPAN/Maker/Utils.pm
+
 CPAN/Maker/Utils.pm: CPAN/Maker/Utils.pm.in CPAN/Maker/Constants.pm
-	$(NO_ECHO)test -d "$$(dirname "$@")" || $(INSTALL) -d "$$(dirname "$@")"; \
-	$(do_subst) $< > $@; \
-	$(perlwc) $(PERLINCLUDE) -wc $@ || { rm $@ && exit 1; }
 
 all: $(GPERLMODULES) $(G3MANPAGES) README.md
 

@@ -1,13 +1,1290 @@
 package CPAN::Maker;
 
+# a CPAN distribution creation utility
+
 use strict;
 use warnings;
 
+use CPAN::Maker::Constants qw( :all );
+use CPAN::Maker::Utils;
+use CLI::Simple::Constants qw(:booleans :chars);
+use CLI::Simple::Utils qw(choose slurp);
+
+use Carp;
+use Cwd;
+use Data::Dumper;
+use English qw( -no_match_vars );
+use ExtUtils::MM;
+use File::Basename qw(basename fileparse);
+use File::Find;
+use File::Process qw( process_file filter );
+use File::Temp qw( tempfile );
+use File::Copy qw(cp);
+use JSON qw( encode_json decode_json );
+use List::Util qw( pairs );
+use Log::Log4perl::Level;
+use Scalar::Util qw( reftype );
+use YAML qw(Load Dump);
+use version;
+
+use Role::Tiny::With;
+
+with 'CPAN::Maker::Role::ModuleUtils';
+with 'CPAN::Maker::Role::FileUtils';
+
 our $VERSION = '@PACKAGE_VERSION@';
+
+__PACKAGE__->use_log4perl( level => 'info' );
+
+use parent qw(CLI::Simple);
+
+caller or __PACKAGE__->main();
+
+########################################################################
+sub init {
+########################################################################
+  my ($self) = @_;
+
+  if ( $self->get_version ) {
+    $self->command('version');
+    return;
+  }
+
+  my $project_root = $self->get_project_root;
+
+  $self->set_project_root( $project_root // $ENV{PROJECT_HOME} // getcwd );
+
+  # TBD: create a spec file and add to distribution
+  # $options{yaml-spec} = get_yaml_specfile;
+
+  # set the min perl version for deteriming core modules
+  $self->_min_perl_version;
+
+  return;
+}
+
+########################################################################
+sub cmd_version {
+########################################################################
+  my ($self) = @_;
+
+  print $PROGRAM_NAME . ' v' . $VERSION . $NL;
+
+  return $SUCCESS;
+}
+
+########################################################################
+sub cmd_parse {
+########################################################################
+  my ($self) = @_;
+
+  die "ERROR: no buildspec.yml specified.\n"
+    if !$self->get_buildspec;
+
+  # processing a build specification...
+  # parse buildspec and then call the bash script which actually builds the CPAN tarball
+  my %args = $self->parse_buildspec;
+
+  my $log_level = $self->get_logger->level;
+
+  if ($log_level) {
+    $args{'-L'} = {
+      $ERROR => 1,
+      $WARN  => 2,
+      $INFO  => 3,
+      $DEBUG => 4,
+      $TRACE => 5,
+    }->{$log_level};
+  }
+
+  my $cmd = join $SPACE, %args;
+
+  $self->get_logger->debug( sub { return Dumper( [ args    => \%args ] ); } );
+  $self->get_logger->trace( sub { return Dumper( [ command => $cmd ] ); } );
+
+  exec 'make-cpan-dist ' . $cmd
+    if !$self->get_dryrun;
+
+  print {*STDOUT} sprintf "make-cpan-dist %s\n", $cmd;
+
+  return $SUCCESS;
+}
+
+########################################################################
+sub cmd_makefile {
+########################################################################
+  my ($self) = @_;
+
+  croak 'no module specified'
+    if !$self->get_module;
+
+  croak 'no dependencies'
+    if !$self->get_requires;
+
+  my $author   = $self->get_author   // 'Anonymouse <anonymouse@example.com>';
+  my $abstract = $self->get_abstract // 'my awesome Perl module!';
+
+  return $self->write_makefile ? $SUCCESS : $FAILURE;
+}
+
+########################################################################
+sub get_exe_file_list {
+########################################################################
+  my ( $self, $file ) = @_;
+
+  my $lines;
+
+  if ($file) {
+    ($lines) = process_file(
+      $file,
+      chomp            => $TRUE,
+      skip_blank_lines => $TRUE,
+      process          => sub {
+        my $f = pop @_;
+        $f =~ s/^.*\/(.*)$/bin\/$1/xsm;
+        return $f;
+      }
+    );
+  }
+
+  return $lines ? @{$lines} : ();
+}
+
+########################################################################
+sub get_perl_version {
+########################################################################
+  my ( $self, $requires ) = @_;
+
+  my $version;
+
+  return
+    if !-e $requires;
+
+  process_file(
+    $requires,
+    chomp   => $TRUE,
+    process => sub {
+      my $module = pop @_;
+
+      if ( $module !~ /^perl\s+/xsm ) {
+        return ();
+      }
+
+      ( undef, $version ) = split /\s+/xsm, $module;
+      return;
+    }
+  );
+
+  return $version;
+}
+
+########################################################################
+sub get_provides {
+########################################################################
+  my ( $self, $file ) = @_;
+
+  my %provides;
+  my @missing;
+
+  my $work_dir = $self->get_work_dir;
+
+  if ($file) {
+    my ($lines) = process_file(
+      $file,
+      chomp            => $TRUE,
+      skip_blank_lines => $TRUE,
+      prefix           => 'lib',
+      process          => sub {
+        my $module = pop @_;
+        my $args   = pop @_;
+
+        if ( !$module ) {
+          return ();
+        }
+
+        my $prefix = $args->{prefix};
+
+        my $include_path = $prefix;
+
+        if ($work_dir) {
+          $include_path = sprintf '%s/%s', $work_dir, $include_path;
+        }
+
+        my $module_version = $self->get_module_version( $module, $include_path );
+
+        my ( $provided_module, $version ) = @{$module_version}{qw( module version)};
+
+        if ( !defined $version ) {
+          warn sprintf "provided module '%s' not found in %s\n", $module, $include_path;
+          push @missing, $module;
+        }
+        else {
+          $provides{$provided_module} = {
+            file    => sprintf( '%s/%s', $prefix, $module_version->{file} ),
+            version => $version,
+          };
+        }
+
+        return $provided_module;
+      }
+    );
+  }
+
+  # @missing is a list of modules in our provides file that do not map
+  # to an actual file. This is probably due to a module containing
+  # multiple classes. In that case if they were included in the
+  # provides list, then the packager most likely wants us to find the
+  # file they belong to.
+  #
+  # Iterate through the list of valid modules and search their files
+  # for our missing modules.
+
+  if (@missing) {
+    warn sprintf "Attempting to find %s files that belong to these modules.\n%s", scalar(@missing), join "\n", @missing;
+
+    my $dir = sprintf '%s/lib', $self->get_work_dir;
+
+    my @file_list;
+
+    find(
+      sub {
+        return if !-f;
+        push @file_list, $File::Find::name;
+      },
+      $dir
+    );
+
+    unshift @INC, $dir;
+
+    foreach my $module (@missing) {
+      foreach my $file (@file_list) {
+        my $text = slurp($file);
+        next if $text !~ /^package\s+$module;/xsm;  # preliminary scan
+
+        # remove all pod so we don't get false positives
+        $text =~ s/^=pod(.*?)=cut//xsmg;
+        next if $text !~ /^package\s+$module;/xsm;
+
+        # see if we can get the version...this might work since we
+        # added $work_dir to @INC. $work_dir
+        # contains all the .pm modules to be packaged. It might not
+        # work for other reaasons (like some required packages are not
+        # installed?)
+        my $version = eval {
+          local $SIG{__WARN__} = sub { };
+          require $file;
+          return eval '$' . $module . '::VERSION';
+        };
+
+        $version //= 'undef';
+        my $rel_path = $file;
+        $rel_path =~ s/$work_dir\///xsm;
+
+        $provides{$module} = {
+          file    => $rel_path,
+          version => $version,
+        };
+
+        print {*STDERR} sprintf "found %s version %s in %s\n", $module, $version, $rel_path;
+      }
+    }
+
+    shift @INC;
+  }
+
+  return %provides;
+}
+
+########################################################################
+sub read_resources {
+########################################################################
+  my ( $self, $file ) = @_;
+
+  return get_json_file($file);
+}
+
+########################################################################
+sub write_resources {
+########################################################################
+  my ( $self, $resources, %args ) = @_;
+
+  my $resources_file;
+
+  if ($resources) {
+    $resources_file = 'resources';
+
+    open my $fh, '>', $resources_file
+      or croak "could not open resources for writing\n";
+
+    print {$fh} JSON->new->pretty->encode($resources);
+
+    close $fh
+      or croak "could not close file $resources_file\n";
+  }
+
+  return %args;
+}
+
+########################################################################
+sub write_pl_files {
+########################################################################
+  my ( $self, $pl_files, %args ) = @_;
+
+  return %args
+    if !$pl_files;
+
+  my ( $fh, $filename ) = tempfile( 'make-cpan-dist-XXXXX', TMPDIR => $TRUE );
+
+  print {$fh} join $SPACE, %{$pl_files};
+
+  close $fh;
+
+  $args{y} = $filename;
+
+  return %args;
+}
+
+########################################################################
+sub _write_provides {
+########################################################################
+  my ( $self, $fh, $provides ) = @_;
+
+  croak "provides must be an array\n"
+    if !is_array($provides);
+
+  foreach my $file ( sort @{$provides} ) {
+    next if !$file;
+    print {$fh} "$file\n";
+  }
+
+  return;
+}
+
+########################################################################
+sub write_provides {
+########################################################################
+  my ( $self, $provides, %args ) = @_;
+
+  return %args
+    if !$provides;
+
+  my $provides_file = 'provides';
+
+  open my $fh, '>', $provides_file
+    or croak "could not open 'provides' for writing\n";
+
+  $self->_write_provides( $fh, $provides );
+
+  close $fh
+    or croak "could not close 'provides'\n";
+
+  $args{P} = $provides_file;
+
+  return %args;
+}
+
+########################################################################
+sub write_makefile {
+########################################################################
+  my ($self) = @_;
+
+  my $core            = $self->get_core_modules;
+  my $MODULE_ABSTRACT = $self->get_abstract;
+  my $AUTHOR          = $self->get_author;
+  my $project_root    = $self->get_project_root;
+
+  my $email;
+  my $author;
+
+  if ( $AUTHOR && $AUTHOR =~ /^([^<]+)\s+<([^>]+)>\s*$/xsm ) {
+    $author = $1;
+    $email  = $2;
+  }
+
+  my $PM_MODULE = $self->get_module;
+
+  my %buildspec = (
+    version => $VERSION,
+    project => {
+      description => $MODULE_ABSTRACT,
+      author      => {
+        name   => $AUTHOR // 'Anonymouse',
+        mailto => $email  // 'anonymouse@example.org',
+      },
+    },
+    pm_module => $PM_MODULE,
+  );
+
+  my $VERSION_FROM = $self->get_version_from // $self->get_module;
+
+  if ( $VERSION_FROM !~ /\//xsm ) {
+    $VERSION_FROM = 'lib/' . $self->make_path_from_module($VERSION_FROM);
+  }
+
+  $buildspec{'version-from'} = $VERSION_FROM;
+
+  local $Data::Dumper::Terse    = $TRUE;
+  local $Data::Dumper::Sortkeys = $TRUE;
+  local $Data::Dumper::Indent   = 2;
+  local $Data::Dumper::Pad      = $SPACE x $INDENT;
+
+  # dependencies = key name taken as file name if not provided
+  foreach my $d (qw(requires test_requires build_requires recommends)) {
+    $self->set( $d, $self->get($d) || $d );
+  }
+
+  $buildspec{dependencies} = {
+    requires       => $self->get_requires,
+    test_requires  => $self->get_test_requires,
+    build_requires => $self->get_build_requires,
+    recommends     => $self->get_recommends,
+  };
+
+  foreach (qw(requires test_requires build_requires recommends)) {
+    my $dependency_file = $buildspec{dependencies}->{$_};
+    $dependency_file =~ s/$project_root\/?//xsm;
+    next if -s $dependency_file;
+
+    delete $buildspec{dependencies}->{$_};
+  }
+
+  my $MIN_PERL_VERSION = $self->get_min_perl_version // $DEFAULT_PERL_VERSION;
+
+  my $require_versions = $self->get_require_versions;
+
+  my $PRE_REQ = Dumper $self->fetch_requires(
+    requires             => $self->get_requires,
+    include_core_modules => $core,
+    include_version      => $require_versions,
+    min_perl_version     => $MIN_PERL_VERSION,
+  );
+
+  $PRE_REQ = trim($PRE_REQ);
+  $PRE_REQ =~ s/([@]\d+)/== $2/xsmg;
+
+  my $TEST_REQ = {};
+
+  if ( $self->get_test_requires && -s $self->get_test_requires ) {
+    $TEST_REQ = Dumper $self->fetch_requires(
+      requires             => $self->get_test_requires,
+      include_core_modules => $core,
+      include_version      => $require_versions,
+      min_perl_version     => $MIN_PERL_VERSION,
+    );
+  }
+  else {
+    $TEST_REQ = '{}';
+  }
+
+  $TEST_REQ = trim($TEST_REQ);
+  $TEST_REQ =~ s/\@(\d+)/== $1/xsmg;
+
+  my $build_req      = {};
+  my $build_requires = $self->get_build_requires;
+
+  if ( $build_requires && -s $build_requires ) {
+    $build_req = $self->fetch_requires(
+      requires             => $build_requires,
+      include_core_modules => $TRUE,
+      include_version      => $require_versions,
+      min_perl_version     => $MIN_PERL_VERSION,
+    );
+  }
+
+  foreach my $m (qw( ExtUtils::MakeMaker File::ShareDir::Install)) {
+    $build_req->{$m} = $build_req->{$m} || $FALSE;
+  }
+
+  $build_req = Dumper $build_req;
+
+  my @exe_file_list;
+  $buildspec{path} = {
+    pm_module => $self->get_module_path,
+    recurse   => $self->get_recurse ? 'yes' : 'no',
+  };
+
+  my $exe_files = $self->get_exe_files || $self->get_exec_path;
+
+  if ( $exe_files && -s $exe_files ) {
+    @exe_file_list = $self->get_exe_file_list($exe_files);
+    $self->set_exec_path($exe_files);
+  }
+
+  foreach my $p ( pairs qw(exe-files exec_path scripts scripts_path tests tests_path) ) {
+    my ( $spec_option, $path ) = @{$p};
+
+    next
+      if !$self->get($path);
+
+    my $real_path = $self->get($path);
+
+    my $project_file = sprintf '%s/%s', $project_root, $real_path;
+
+    if ( -e $project_file ) {
+      $buildspec{path}->{$spec_option} = $real_path;
+    }
+    else {
+      $buildspec{$spec_option} = $self->fetch_relative_filelist( $project_root, $real_path );
+
+      # remove temporary files?
+      if ( $real_path =~ /make\-cpan\-dist\-[[:alpha:]]{5}/xsm ) {
+        unlink $real_path;
+      }
+    }
+  }
+
+  if ( my $path = $self->get_extra_path ) {
+    $buildspec{'extra-files'} = $path;
+  }
+
+  my $EXE_FILES = Dumper \@exe_file_list;
+
+  # was: blindly putting all exe_files into MAN3PODS
+  # fix: MAN1PODS only for scripts that actually contain POD
+
+  my %man1pods;
+
+  foreach (@exe_file_list) {
+    my ( $name, $path, $ext ) = fileparse( $_, qr/[.][^.]+\z/xsm );
+
+    # only include scripts that actually contain POD
+    my $content = eval { slurp($_) } // q{};
+    next if $content !~ /^=(head\d|pod|over|item|begin|encoding)/xsm;
+
+    $man1pods{$_} = sprintf 'blib/man1/%s.1', $name;
+  }
+
+  my $MAN1PODS = Dumper \%man1pods;
+
+  my %provides;
+
+  if ( -e 'provides' ) {
+    %provides = $self->get_provides('provides');
+    $buildspec{provides} = [ keys %provides ];
+  }
+
+  my $resources_path = $self->get_resources // 'resources';
+  my $resources;
+
+  if ( -e $resources_path ) {
+    $resources = $self->read_resources($resources_path);
+    $buildspec{resources} = $resources;
+  }
+
+  my $recommends = {};
+
+  if ( $self->get_recommends && -s $self->get_recommends ) {
+    $recommends = $self->fetch_requires(
+      requires             => $self->get_recommends,
+      include_core_modules => $core,
+      include_version      => $require_versions,
+      min_perl_version     => $MIN_PERL_VERSION,
+    );
+  }
+
+  my $META_MERGE = 'META_MERGE ' . $FAT_ARROW;
+
+  {
+    local $Data::Dumper::Pair = $FAT_ARROW;
+    $META_MERGE .= Dumper(
+      { 'meta-spec' => { version => 2 },
+        'provides'  => \%provides,
+        ( keys %{$recommends} ? ( 'prereqs' => { 'runtime' => { 'recommends' => $recommends, } } ) : () ),
+        $resources ? ( 'resources' => $resources ) : ()
+      }
+    );
+  }
+
+  my $timestamp = scalar localtime;
+
+  $buildspec{'min-perl-version'} = $MIN_PERL_VERSION;
+
+  #  From: https://metacpan.org/pod/ExtUtils::MakeMaker
+  #
+  #  MakeMaker can run programs to generate files for you at build
+  #  time. By default any file named *.PL (except Makefile.PL and
+  #  Build.PL) in the top level directory will be assumed to be a Perl
+  #  program and run passing its own basename in as an argument. This
+  #  basename is actually a build target, and there is an intention, but
+  #  not a requirement, that the *.PL file make the file passed to to as
+  #  an argument. For example...
+  #
+  # perl foo.PL foo
+  #
+  my %pl_list;
+
+  my $pl_files = $self->get_pl_files;
+
+  if ( $pl_files && -s $pl_files ) {
+    my @file_list = split /\n/xsm, slurp($pl_files);
+
+    foreach my $pl_file (@file_list) {
+      my ( $file, $target ) = split /\s+/xsm, $_;
+      $pl_list{$file} = $target;
+    }
+
+    $buildspec{'pl-files'} = \%pl_list;
+  }
+
+  my $PL_FILES = Dumper( \%pl_list );
+
+  $buildspec{postamble} = $self->get_postamble;
+
+  my $MAKEFILE = <<"END_OF_TEXT";
+# autogenerated by $PROGRAM_NAME on $timestamp
+
+use strict;
+use warnings;
+
+use ExtUtils::MakeMaker;
+use File::ShareDir::Install;
+
+\$File::ShareDir::Install::INCLUDE_DOTFILES = 1;
+
+if ( -d 'share' ) {
+  install_share 'share';
+}
+
+WriteMakefile(
+  NAME             => '$PM_MODULE',
+  MIN_PERL_VERSION => '$MIN_PERL_VERSION',
+  AUTHOR           => '$AUTHOR',
+  VERSION_FROM     => '$VERSION_FROM',
+  ABSTRACT         => '$MODULE_ABSTRACT',
+  LICENSE          => 'perl',
+  PL_FILES         => $PL_FILES,
+  EXE_FILES        => $EXE_FILES,
+  MAN1PODS         => $MAN1PODS,
+  PREREQ_PM        => $PRE_REQ,
+  BUILD_REQUIRES   => {
+    'ExtUtils::MakeMaker'     => '6.64',
+    'File::ShareDir::Install' => $NO_VERSION,
+    },
+  CONFIGURE_REQUIRES => {
+    'ExtUtils::MakeMaker'     => '6.64',
+    'File::ShareDir::Install' => $NO_VERSION,
+    },
+  TEST_REQUIRES => $TEST_REQ,
+  $META_MERGE
+);
+END_OF_TEXT
+
+  $MAKEFILE .= <<'END_OF_MAKEFILE';
+package MY;
+
+use File::ShareDir::Install;
+use English qw(-no_match_vars);
+
+sub postamble {
+  my $self = shift;
+
+  my @ret = File::ShareDir::Install::postamble($self);
+
+  my $postamble = join "\n", @ret;
+
+  if ( -e 'postamble' ) {
+
+    local $RS = undef;
+
+    open my $fh, '<', 'postamble'
+      or die "could not open postamble\n";
+
+    $postamble .= <$fh>;
+
+    close $fh;
+  }
+
+  return $postamble;
+}
+
+1;
+END_OF_MAKEFILE
+
+  print $MAKEFILE;
+
+  $self->get_logger->debug( sub { return $MAKEFILE } );
+
+  $self->write_buildspec_file( \%buildspec );
+
+  return $SUCCESS;
+}
+
+########################################################################
+sub write_buildspec_file {
+########################################################################
+  my ( $self, $buildspec ) = @_;
+
+  my $buildspec_file = $self->get_create_buildspec;
+  my $overwrite      = $self->get_overwrite;
+
+  return
+    if !$buildspec_file;
+
+  die "$buildspec_file exists\n"
+    if -e $buildspec_file && !$overwrite;
+
+  open my $fh, '>', $buildspec_file
+    or die "could not open $buildspec_file for writing\n";
+
+  print {$fh} Dump($buildspec);
+
+  close $fh;
+
+  return;
+}
+
+########################################################################
+sub parse_dependencies {
+########################################################################
+  my ( $self, $dependencies, %args ) = @_;
+
+  if ($dependencies) {
+    croak 'malformed buildspec.yml file - dependencies section with no keys?'
+      if !keys %{$dependencies};
+
+    $dependencies->{core_modules}     //= 'no';
+    $dependencies->{required_modules} //= 'yes';
+
+    if ( $dependencies->{path} ) {  # deprecatd
+      $args{D} = $dependencies->{path};
+      warn "path is deprecated: use requires\n";
+    }
+
+    if ( $dependencies->{requires} ) {
+      $args{D} = $dependencies->{requires};
+    }
+
+    if ( $dependencies->{test_requires} ) {
+      $args{T} = $dependencies->{test_requires};
+    }
+
+    if ( $dependencies->{build_requires} ) {
+      $args{B} = $dependencies->{build_requires};
+    }
+
+    if ( $dependencies->{recommends} ) {
+      $args{Y} = $dependencies->{recommends};
+    }
+
+    if ( $dependencies->{core_modules} eq 'yes' ) {
+      $args{c} = $EMPTY;
+    }
+
+    if ( $dependencies->{required_modules} eq 'no' ) {
+      $args{n} = $EMPTY;
+    }
+
+    if ( my $resolver = $dependencies->{resolver} ) {
+      if ( $resolver eq 'scandeps' ) {
+        $args{s} = $EMPTY;
+      }
+      else {
+        $args{r} = $dependencies->{resolver};
+      }
+    }
+
+    if ( $args{D} && $args{r} ) {
+      croak "use either path or resolver for dependencies, but not both\n";
+    }
+  }
+
+  return %args;
+}
+
+########################################################################
+sub parse_include_version {
+########################################################################
+  my ( $self, $version, %args ) = @_;
+
+  return %args
+    if !defined $version;
+
+  if ( $version =~ /(no|0|off)/ixsm ) {
+    $args{A} = $EMPTY;
+  }
+
+  return %args;
+}
+
+########################################################################
+sub parse_project {
+########################################################################
+  my ( $self, $project, %args ) = @_;
+
+  if ($project) {
+    if ( $project->{author} ) {
+      $args{a} = $project->{author}->{name};
+
+      if ( $project->{author}->{mailto} ) {
+        $args{a} .= ' <' . $project->{author}->{mailto} . '>';
+      }
+
+      $args{a} = sprintf q{'%s'}, $args{a};
+    }
+
+    # -d
+    if ( $project->{description} ) {
+      $args{d} = sprintf q{'%s'}, $project->{description};
+    }
+
+    # -g
+    if ( $project->{git} ) {
+      $args{g} = $project->{git};
+    }
+  }
+
+  return %args;
+}
+
+########################################################################
+sub parse_pm_module {
+########################################################################
+  my ( $self, $pm_module, %args ) = @_;
+
+  if ($pm_module) {
+    $args{m} = $pm_module;
+  }
+  return %args;
+}
+
+########################################################################
+sub read_buildspec {
+########################################################################
+  my ( $self, $file ) = @_;
+
+  croak 'file not found or empty ' . $file . $NL
+    if !-s $file;
+
+  my $buildspec = eval { YAML::Tiny->read($file)->[0]; };
+
+  croak 'could not read ' . $file . $NL . $EVAL_ERROR . $NL
+    if $EVAL_ERROR || !$buildspec;
+
+  $buildspec->{min_perl_version} = $buildspec->{'min-perl-version'};
+  $buildspec->{include_version}  = $buildspec->{'include-version'};
+
+  return $buildspec;
+}
+
+# this method converts a buildspec into options to be passed to shell script
+# which eventually calls this script to create the Makefile.PL
+########################################################################
+sub parse_buildspec {
+########################################################################
+  my ($self) = @_;
+
+  my $file = $self->get_buildspec;
+
+  my $buildspec = $self->read_buildspec($file);
+
+  my $project_root = $self->get_project_root;
+
+  croak 'bad build file'
+    if !$self->validate_object( $buildspec, $self->get_yaml_specfile );
+
+  my %args;
+
+  if ( $buildspec->{min_perl_version} ) {
+    $args{M} = $buildspec->{min_perl_version};
+  }
+
+  if ( $buildspec->{version_from} || $buildspec->{'version-from'} ) {
+    $args{V} = $buildspec->{version_from} // $buildspec->{'version-from'};
+  }
+
+  if ($project_root) {
+    $args{H} = $project_root;
+  }
+
+  if ( my $postamble = $self->get_postamble ) {
+    $args{F} = $postamble;
+  }
+
+  if ( $buildspec->{exe_files} ) {
+    $args{e} = $self->create_temp_filelist( $project_root, $buildspec->{exe_files} );
+  }
+
+  if ( $buildspec->{tests} ) {
+    $args{t} = $self->create_temp_filelist( $project_root, $buildspec->{tests} );
+  }
+
+  if ( $buildspec->{scripts} ) {
+    $args{S} = $self->create_temp_filelist( $project_root, $buildspec->{scripts} );
+  }
+
+  %args = $self->write_resources( $buildspec->{resources}, %args );
+
+  %args = $self->parse_project( $buildspec->{project}, %args );
+
+  %args = $self->parse_pm_module( $buildspec->{pm_module}, %args );
+
+  %args = $self->parse_include_version( $buildspec->{include_version}, %args );
+
+  %args = $self->parse_dependencies( $buildspec->{dependencies}, %args );
+
+  %args = $self->parse_path( $project_root, $buildspec->{path}, %args );
+
+  %args = $self->write_extra_files(
+    extra_files  => $buildspec->{'extra-files'},
+    extra        => $buildspec->{extra},
+    args         => \%args,
+    project_root => $project_root,
+  );
+
+  %args = $self->write_provides( $buildspec->{provides}, %args );
+
+  %args = $self->write_pl_files( $buildspec->{pl_files}, %args );
+
+  if ( my $links = $buildspec->{'man-links'} ) {
+    my $man_links_content = $self->_generate_man_links($links);
+
+    my ( $fh, $filename ) = tempfile( 'make-cpan-dist-XXXXX', TMPDIR => $TRUE );
+
+    # preserve existing postamble if one was specified
+    if ( $args{F} && -e $args{F} ) {
+      local $RS = undef;
+      open my $existing, '<', $args{F}
+        or die "could not read postamble $args{F}: $OS_ERROR\n";
+      print {$fh} <$existing>;
+      close $existing;
+    }
+
+    print {$fh} $man_links_content;
+    close $fh;
+
+    $args{F} = $filename;
+  }
+
+  # set boolean args from options
+
+  my @boolean_args = qw( verbose v cleanup !x scandeps s require-versions !A );
+
+  foreach my $pair ( pairs @boolean_args ) {
+    my ( $key, $value ) = @{$pair};
+
+    if ( $value =~ /^\!(.*)$/xsm ) {
+      if ( $self->get($1) ) {
+        $self->set( $1, undef );
+      }
+    }
+    elsif ( $self->get($key) ) {
+      $args{$value} = $EMPTY;
+    }
+  }
+
+  # set value args from buildspec
+  foreach my $pair ( pairs qw( destdir o extra f ) ) {
+    my ( $key, $value ) = @{$pair};
+
+    if ( $buildspec->{$key} ) {
+      $args{$value} = $buildspec->{$key};
+    }
+  }
+
+  foreach my $k ( keys %args ) {
+    $args{ $DASH . $k } = $args{$k};
+    delete $args{$k};
+  }
+
+  $self->get_logger->debug( Dumper( [ args => \%args ] ) );
+
+  return %args;
+}
+
+########################################################################
+sub _generate_man_links {
+########################################################################
+  my ( $self, $links ) = @_;
+
+  my $content = q{};
+
+  for my $entry ( @{$links} ) {
+    for my $p ( pairs %{$entry} ) {
+      my ( $alias, $module ) = @{$p};
+
+      # derive the .pm path from the module name and check for POD
+      ( my $pm_path = "lib/$module.pm" ) =~ s|::|/|gxsm;
+
+      if ( -e $pm_path ) {
+        my $pm_content = eval { slurp($pm_path) } // q{};
+
+        if ( $pm_content !~ /^=(head\d|pod|over|item|begin|encoding)/xsm ) {
+          next;
+        }
+      }
+      else {
+        next;
+      }
+
+      $content .= <<"POSTAMBLE";
+install ::
+\t\$(NOECHO) ln -sf \$(INSTALLMAN3DIR)/$module.3pm \$(INSTALLMAN3DIR)/$alias.3pm
+\t\$(NOECHO) echo \$(INSTALLMAN3DIR)/$alias.3pm >> \$(DESTINSTALLSITEARCH)/auto/\$(FULLEXT)/.packlist
+POSTAMBLE
+    }
+  }
+
+  return $content;
+}
+
+########################################################################
+sub fetch_requires {
+########################################################################
+  my ( $self, %args ) = @_;
+
+  my ( $requires, $core_modules, $min_perl_version, $include_version )
+    = @args{qw(requires core_modules min_perl_version include_version)};
+
+  my $logger = $self->get_logger;
+
+  $logger->trace( sprintf 'processing %s file',       $requires );
+  $logger->trace( sprintf "\t include_version: [%s]", $include_version ? 'yes' : 'no' );
+  $logger->trace( sprintf "\tmin_perl_version: [%s]", $min_perl_version );
+  $logger->trace( sprintf "\t    core_modules: [%s]", $core_modules ? 'yes' : 'no' );
+
+  my %modules;
+
+  process_file(
+    $requires,
+    chomp            => $TRUE,
+    skip_blank_lines => $TRUE,
+    skip_comments    => $TRUE,
+    filter           => sub {
+      my ( $fh, $all_lines, $args, $line ) = @_;
+      $line = filter( $fh, $all_lines, $args, $line );
+
+      return ()    if $line && $line =~ /^perl\s+/xsm;
+      return $line if !defined $line;
+      return $line if $core_modules;
+      return $line if $line =~ /^[+]/xsm;
+      return $self->is_core( $line, $min_perl_version ) ? undef : $line;
+    },
+    process => sub {
+      my $line = pop @_;
+
+      $line =~ s/^[+]//xsm;
+
+      my ( $module, $version ) = split /\s+/xsm, $line;
+
+      $logger->trace( sprintf "\tprocessing line (%s): %s", basename($requires), $line );
+
+      $logger->trace( sprintf "\t\t[%s:%s]", $module, $version // $EMPTY );
+
+      if ( !$include_version ) {
+        $version = '0';
+      }
+      else {
+        $version ||= '0';
+      }
+
+      $modules{$module} = $version;
+
+      return $line;
+    }
+  );
+
+  return \%modules;
+}
+
+########################################################################
+sub get_modules {
+########################################################################
+  my ( $self, $module_list ) = @_;
+
+  my ($modules) = process_file( $module_list, chomp => $TRUE );
+
+  return $modules;
+}
+
+########################################################################
+sub get_yaml_specfile {
+########################################################################
+  my ($self) = @_;
+
+  my ($lines) = process_file(
+    *DATA,
+    chomp     => $TRUE,
+    next_line => sub {
+      my ( $fh, $all_lines, $args ) = @_;
+
+      my $line = <$fh>;
+
+      return
+        if !$line || $line =~ /^\=pod/xsm;  # signal end of file
+
+      return $line;
+    }
+  );
+
+  return Load join "\n", @{$lines};
+}
+
+########################################################################
+sub validate_object {
+########################################################################
+  my ( $self, $obj, $spec, $err ) = @_;
+
+  $err = $err // 0;
+
+  if ( reftype($obj) eq 'HASH' ) {
+    foreach my $k ( keys %{$obj} ) {
+      if ( !exists $spec->{$k} ) {
+        carp "ERROR: not a valid key ($k)\n" . Dumper [ $k, $spec ];
+        $err++;
+      }
+
+      if ( ref $spec->{$k} ) {
+        if ( !ref $obj->{$k}
+          || reftype( $obj->{$k} ) ne reftype( $spec->{$k} ) ) {
+          warn "ERROR: wrong type for ($k) - $k must be " . reftype( $spec->{$k} ) . "\n";
+          $err++;
+        }
+        else {
+          $self->validate_object( $obj->{$k}, $spec->{$k}, $err );
+        }
+      }
+    }
+  }
+  else {  # just validate arrays are arrays for now, deep dive TBD
+    $err = reftype($spec) =~ /ARRAY|HASH/xsm;
+  }
+
+  return $err ? $FALSE : $TRUE;
+}
+
+########################################################################
+sub _min_perl_version {
+########################################################################
+  my ($self) = @_;
+
+  my $min_perl_version = choose {
+    return $self->get_min_perl_version
+      if $self->get_min_perl_version;
+
+    return $self->get_perl_version( $self->get_requires )
+      if $self->get_requires;
+
+    return $DEFAULT_PERL_VERSION;
+  };
+
+  $min_perl_version = version->parse($min_perl_version)->stringify;
+
+  $self->set_min_perl_version($min_perl_version);
+
+  return;
+}
+
+########################################################################
+sub main {
+########################################################################
+
+  my @option_specs = qw(
+    abstract|A=s
+    author|a=s
+    build-requires|B=s
+    buildspec|b=s
+    cleanup!
+    core-modules!
+    create-buildspec=s
+    debug|D
+    dryrun
+    exe-files|e=s
+    exec-path=s
+    extra-path=s
+    help|h
+    log-level|l=s
+    min-perl-version|M=s
+    module-path=s
+    module|m=s
+    overwrite
+    pager|P!
+    pl-files=s
+    postamble=s
+    project-root|p=s
+    recommends=s
+    recurse
+    require-versions|R!
+    requires|r=s
+    resources=s
+    scandeps|s
+    scripts-path=s
+    test-requires|t=s
+    tests-path=s
+    verbose|V
+    version-from=s
+    version|v
+    work-dir|w=s
+  );
+
+  my $default_options = { cleanup => $TRUE, pager => $TRUE, require_versions => $TRUE };
+
+  my %commands = (
+    default  => \&cmd_parse,
+    parse    => \&cmd_parse,
+    version  => \&cmd_version,
+    makefile => \&cmd_makefile,
+  );
+
+  my $cli = CPAN::Maker->new(
+    commands       => \%commands,
+    option_specs   => \@option_specs,
+    default_option => $default_options,
+  );
+
+  exit $cli->run();
+}
 
 1;
 
-## no critic
+__DATA__
+---
+version: "@PACKAGE_VERSION@"
+min_perl_version: "type:string"
+min-perl-version: "type:string"
+project:
+  git: "type:string"
+  description: "type:string"
+  author:
+    name: "type:string"
+    mailto: "type:string"
+pm_module:
+include_version: "type:boolean"
+include-version: "type:boolean"
+dependencies:
+  resolver: "type:string"
+  path: "type:string"
+  requires: "type:string"
+  test_requires: "type:string"
+  build_requires: "type:string"
+  core_modules: "type::boolean"
+  required_modules: "type:boolean"
+  recommends: "type:string"
+pl_files:
+postamble: "type:string"
+path:
+  recurse: "type:boolean"
+  pm_module: "type:string"
+  tests: "type:string"
+  exe_files: "type:string"
+  scripts: "type:string"
+  exclude_files: "type:string"
+extra: "type:string"
+extra-files:
+provides: "type:string"
+resources:
+  homepage: "type:string"
+  bugtracker:
+    web: "type:string"
+    mailto: "type:string"
+  repository:
+    url: "type:string"
+    web: "type:string"
+    type: "type:string"
+scripts:
+exe_files:
+version-from: "type:string"
+man-links:
+
 
 __END__
 
@@ -75,7 +1352,7 @@ C<Makefile.PL> and before creating your CPAN distribution.
  -h, --help                  help
  -l, --log-level             ERROR, WARN, INFO, DEBUG, TRACE
  -m, --module                module name
- -M, --min-perl-version      minimum perl version to consider core, default: $PERL_VERSION
+ -M, --min-perl-version      minimum perl version to consider core, default: 5.010
  -P, --pager, --no-pager     use a pager for help, default: use pager
      --pl-files              path to the PL_FILES list (see perldoc ExtUtils::MakeMaker)
      --postamble             name of the file containing the postamble instructions

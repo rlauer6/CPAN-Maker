@@ -1,0 +1,47 @@
+---
+version: "@PACKAGE_VERSION@"
+min_perl_version: "type:string"
+min-perl-version: "type:string"
+project:
+  git: "type:string"
+  description: "type:string"
+  author:
+    name: "type:string"
+    mailto: "type:string"
+pm_module:
+include_version: "type:boolean"
+include-version: "type:boolean"
+dependencies:
+  resolver: "type:string"
+  path: "type:string"
+  requires: "type:string"
+  test_requires: "type:string"
+  build_requires: "type:string"
+  core_modules: "type::boolean"
+  required_modules: "type:boolean"
+  recommends: "type:string"
+pl_files:
+postamble: "type:string"
+path:
+  recurse: "type:boolean"
+  pm_module: "type:string"
+  tests: "type:string"
+  exe_files: "type:string"
+  scripts: "type:string"
+  exclude_files: "type:string"
+extra: "type:string"
+extra-files:
+provides: "type:string"
+resources:
+  homepage: "type:string"
+  bugtracker:
+    web: "type:string"
+    mailto: "type:string"
+  repository:
+    url: "type:string"
+    web: "type:string"
+    type: "type:string"
+scripts:
+exe_files:
+version-from: "type:string"
+man-links:
