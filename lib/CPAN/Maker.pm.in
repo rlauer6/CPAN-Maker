@@ -273,7 +273,8 @@ sub get_provides {
         my $version = eval {
           local $SIG{__WARN__} = sub { };
           require $file;
-          return eval '$' . $module . '::VERSION';
+          no strict 'refs'; ## no critic
+          return ${ $module . '::VERSION' };
         };
 
         $version //= 'undef';
@@ -1101,8 +1102,15 @@ sub get_yaml_specfile {
 ########################################################################
   my ($self) = @_;
 
+  require File::ShareDir;
+  my $distdir = File::ShareDir::dist_dir('CPAN-Maker');
+  my $file    = sprintf '%s/%s', $distdir, 'buildspec-specfile.yml';
+
+  open my $fh, '<', $file
+    or die "ERROR: could not open $file for reading: $OS_ERROR\n";
+
   my ($lines) = process_file(
-    *DATA,
+    $fh,
     chomp     => $TRUE,
     next_line => sub {
       my ( $fh, $all_lines, $args ) = @_;
@@ -1115,6 +1123,8 @@ sub get_yaml_specfile {
       return $line;
     }
   );
+
+  close $fh;
 
   return Load join "\n", @{$lines};
 }

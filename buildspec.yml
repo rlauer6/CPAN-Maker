@@ -17,6 +17,7 @@ extra-files:
   - ChangeLog
   - share:
       - README.md
+      - buildspec-specfile.yml
 resources:
   bugtracker:
     mailto: rclauer@gmail.com

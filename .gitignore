@@ -19,5 +19,6 @@ resources
 *-review-2*.annotate
 **/*.crit
 **/*.tdy
-bin//home/rlauer/git/CPAN-Maker/src/main/bash/bin/upload2cpan
-bin//home/rlauer/git/CPAN-Maker/src/main/bash/bin/make-cpan-dist
+bin/upload2cpan
+bin/make-cpan-dist
+bin/cpan-maker

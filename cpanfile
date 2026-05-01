@@ -1,0 +1,12 @@
+requires "CLI::Simple", "2.0.0";
+requires "CLI::Simple::Constants", "2.0.0";
+requires "CLI::Simple::Utils", "2.0.0";
+requires "IO::Scalar", "2.113";
+requires "JSON", "4.10";
+requires "Log::Log4perl::Level", "0";
+requires "Readonly", "2.05";
+requires "Role::Tiny", "2.002004";
+requires "Role::Tiny::With", "2.002004";
+requires "Text::CSV_XS", "1.61";
+requires "YAML", "1.31";
+requires "version", "0.9930";
