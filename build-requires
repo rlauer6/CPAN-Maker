@@ -1,6 +1,7 @@
+YAML::Tiny
+CPAN::Maker@1.9.0
 Module::ScanDeps::Static
 Module::CPANfile
 Markdown::Render@1.0.4
-YAML::Tiny
-Text::CSV_XS
-Pod::Markdown
+File::ShareDir
+File::ShareDir::Install

@@ -20,11 +20,12 @@ use File::Find;
 use File::Process qw( process_file filter );
 use File::Temp qw( tempfile );
 use File::Copy qw(cp);
+use File::ShareDir qw(dist_dir dist_file);
 use JSON qw( encode_json decode_json );
 use List::Util qw( pairs );
 use Log::Log4perl::Level;
 use Scalar::Util qw( reftype );
-use YAML qw(Load Dump);
+use YAML::Tiny qw(Load Dump LoadFile);
 use version;
 
 use Role::Tiny::With;
@@ -50,17 +51,64 @@ sub init {
     return;
   }
 
+  my $log_level = $self->get_log_level;
+  $self->_set_log_level($log_level);
+
   my $project_root = $self->get_project_root;
 
   $self->set_project_root( $project_root // $ENV{PROJECT_HOME} // getcwd );
 
-  # TBD: create a spec file and add to distribution
-  # $options{yaml-spec} = get_yaml_specfile;
-
   # set the min perl version for deteriming core modules
   $self->_min_perl_version;
 
+  # invoked by bash script to generate Makefile.PL - no buildspec
+  if ( !$self->get_buildspec && $self->get_module ) {
+    $self->command('write-makefile');
+  }
+
   return;
+}
+
+########################################################################
+sub _set_log_level {
+########################################################################
+  my ( $self, $log_level ) = @_;
+
+  my @numeric_levels = (
+    $ERROR => 1,
+    $WARN  => 2,
+    $INFO  => 3,
+    $DEBUG => 4,
+    $TRACE => 5,
+  );
+
+  my @text_levels = (
+    error => 1,
+    warn  => 2,
+    info  => 3,
+    debug => 4,
+    trace => 5,
+  );
+
+  my $numeric_level = choose {
+
+    if ( $log_level =~ /^(?:[12345])$/xsm ) {
+      $log_level = { reverse @numeric_levels }->{$log_level};
+      return $self->get_log_level;
+    }
+    elsif ( ($log_level) = grep { $log_level eq $_ } @text_levels ) {
+      return {@text_levels}->{$log_level};
+    }
+    else {
+      $log_level = {@text_levels}->{info};
+    }
+  };
+
+  $self->get_logger->level( { reverse @numeric_levels }->{$numeric_level} );
+
+  $self->set_log_level($numeric_level);
+
+  return $numeric_level;
 }
 
 ########################################################################
@@ -74,7 +122,34 @@ sub cmd_version {
 }
 
 ########################################################################
-sub cmd_parse {
+sub cmd_validate {
+########################################################################
+  my ($self) = @_;
+
+  my $is_validator_available = eval { require JSON::Validator; 1; };
+
+  die "ERROR: JSON::Validator must be installed to validate your 'buildspec.yml' file.\n"
+    if !$is_validator_available;
+
+  my ($file) = $self->get_args;
+  $file //= $self->get_buildspec // 'buildspec.yml';
+
+  croak "ERROR: $file not found\n" if !-e $file;
+
+  my $buildspec = $self->read_buildspec($file);
+
+  if ( $self->validate_buildspec($buildspec) ) {
+    $self->get_logger->info("$file is valid");
+    return $SUCCESS;
+  }
+  else {
+    $self->get_logger->error("$file is invalid");
+    return $FAILURE;
+  }
+}
+
+########################################################################
+sub cmd_build {
 ########################################################################
   my ($self) = @_;
 
@@ -85,16 +160,10 @@ sub cmd_parse {
   # parse buildspec and then call the bash script which actually builds the CPAN tarball
   my %args = $self->parse_buildspec;
 
-  my $log_level = $self->get_logger->level;
+  my $log_level = $self->get_log_level;
 
-  if ($log_level) {
-    $args{'-L'} = {
-      $ERROR => 1,
-      $WARN  => 2,
-      $INFO  => 3,
-      $DEBUG => 4,
-      $TRACE => 5,
-    }->{$log_level};
+  if ( $log_level =~ /^(?:[12345])$/xsm ) {
+    $args{'-L'} = $log_level;
   }
 
   my $cmd = join $SPACE, %args;
@@ -151,7 +220,7 @@ sub get_exe_file_list {
 }
 
 ########################################################################
-sub get_perl_version {
+sub fetch_perl_version {
 ########################################################################
   my ( $self, $requires ) = @_;
 
@@ -413,7 +482,7 @@ sub write_makefile {
         mailto => $email  // 'anonymouse@example.org',
       },
     },
-    pm_module => $PM_MODULE,
+    'pm-module' => $PM_MODULE,
   );
 
   my $VERSION_FROM = $self->get_version_from // $self->get_module;
@@ -435,13 +504,13 @@ sub write_makefile {
   }
 
   $buildspec{dependencies} = {
-    requires       => $self->get_requires,
-    test_requires  => $self->get_test_requires,
-    build_requires => $self->get_build_requires,
-    recommends     => $self->get_recommends,
+    requires         => $self->get_requires,
+    'test-requires'  => $self->get_test_requires,
+    'build-requires' => $self->get_build_requires,
+    recommends       => $self->get_recommends,
   };
 
-  foreach (qw(requires test_requires build_requires recommends)) {
+  foreach (qw(requires test-requires build-requires recommends)) {
     my $dependency_file = $buildspec{dependencies}->{$_};
     $dependency_file =~ s/$project_root\/?//xsm;
     next if -s $dependency_file;
@@ -461,7 +530,7 @@ sub write_makefile {
   );
 
   $PRE_REQ = trim($PRE_REQ);
-  $PRE_REQ =~ s/([@]\d+)/== $2/xsmg;
+  $PRE_REQ =~ s/[@](\d+)/== $1/xsmg;
 
   my $TEST_REQ = {};
 
@@ -478,7 +547,7 @@ sub write_makefile {
   }
 
   $TEST_REQ = trim($TEST_REQ);
-  $TEST_REQ =~ s/\@(\d+)/== $1/xsmg;
+  $TEST_REQ =~ s/[@](\d+)/== $1/xsmg;
 
   my $build_req      = {};
   my $build_requires = $self->get_build_requires;
@@ -500,8 +569,8 @@ sub write_makefile {
 
   my @exe_file_list;
   $buildspec{path} = {
-    pm_module => $self->get_module_path,
-    recurse   => $self->get_recurse ? 'yes' : 'no',
+    'pm-module' => $self->get_module_path,
+    recurse     => $self->get_recurse ? 'yes' : 'no',
   };
 
   my $exe_files = $self->get_exe_files || $self->get_exec_path;
@@ -511,7 +580,7 @@ sub write_makefile {
     $self->set_exec_path($exe_files);
   }
 
-  foreach my $p ( pairs qw(exe-files exec_path scripts scripts_path tests tests_path) ) {
+  foreach my $p ( pairs qw(exe-files exec-path scripts scripts-path tests tests-path) ) {
     my ( $spec_option, $path ) = @{$p};
 
     next
@@ -620,7 +689,7 @@ sub write_makefile {
     my @file_list = split /\n/xsm, slurp($pl_files);
 
     foreach my $pl_file (@file_list) {
-      my ( $file, $target ) = split /\s+/xsm, $_;
+      my ( $file, $target ) = split /\s+/xsm, $pl_file;
       $pl_list{$file} = $target;
     }
 
@@ -707,7 +776,7 @@ END_OF_MAKEFILE
 
   $self->write_buildspec_file( \%buildspec );
 
-  return $SUCCESS;
+  return $TRUE;
 }
 
 ########################################################################
@@ -743,8 +812,8 @@ sub parse_dependencies {
     croak 'malformed buildspec.yml file - dependencies section with no keys?'
       if !keys %{$dependencies};
 
-    $dependencies->{core_modules}     //= 'no';
-    $dependencies->{required_modules} //= 'yes';
+    $dependencies->{'core-modules'}     //= 'no';
+    $dependencies->{'required-modules'} //= 'yes';
 
     if ( $dependencies->{path} ) {  # deprecatd
       $args{D} = $dependencies->{path};
@@ -755,23 +824,23 @@ sub parse_dependencies {
       $args{D} = $dependencies->{requires};
     }
 
-    if ( $dependencies->{test_requires} ) {
-      $args{T} = $dependencies->{test_requires};
+    if ( $dependencies->{'test-requires'} ) {
+      $args{T} = $dependencies->{'test-requires'};
     }
 
-    if ( $dependencies->{build_requires} ) {
-      $args{B} = $dependencies->{build_requires};
+    if ( $dependencies->{'build-requires'} ) {
+      $args{B} = $dependencies->{'build-requires'};
     }
 
     if ( $dependencies->{recommends} ) {
       $args{Y} = $dependencies->{recommends};
     }
 
-    if ( $dependencies->{core_modules} eq 'yes' ) {
+    if ( $dependencies->{'core-modules'} eq 'yes' ) {
       $args{c} = $EMPTY;
     }
 
-    if ( $dependencies->{required_modules} eq 'no' ) {
+    if ( $dependencies->{'required-modules'} eq 'no' ) {
       $args{n} = $EMPTY;
     }
 
@@ -856,13 +925,30 @@ sub read_buildspec {
   croak 'file not found or empty ' . $file . $NL
     if !-s $file;
 
-  my $buildspec = eval { YAML::Tiny->read($file)->[0]; };
+  local $RS = undef;
+  open my $fh, '<', $file or croak "could not open $file: $OS_ERROR\n";
+  my $text = <$fh>;
+  close $fh;
+
+  my $normalized = (
+    $text =~ s/^(\s*)(\w+)(\s*:)/
+    my ($pre, $key, $post) = ($1, $2, $3);
+    $key =~ s|_|-|g;
+    "$pre$key$post"/xsmgre
+  );
+
+  if ( $normalized ne $text ) {
+    my $current = $file . '.current';
+    open my $out, '>', $current or croak "could not write $current: $OS_ERROR\n";
+    print {$out} $normalized;
+    close $out;
+    $self->get_logger->warn("deprecated underscore keys found - normalized buildspec written to $current");
+  }
+
+  my $buildspec = eval { Load($normalized) };
 
   croak 'could not read ' . $file . $NL . $EVAL_ERROR . $NL
     if $EVAL_ERROR || !$buildspec;
-
-  $buildspec->{min_perl_version} = $buildspec->{'min-perl-version'};
-  $buildspec->{include_version}  = $buildspec->{'include-version'};
 
   return $buildspec;
 }
@@ -876,21 +962,21 @@ sub parse_buildspec {
 
   my $file = $self->get_buildspec;
 
-  my $buildspec = $self->read_buildspec($file);
-
   my $project_root = $self->get_project_root;
 
-  croak 'bad build file'
-    if !$self->validate_object( $buildspec, $self->get_yaml_specfile );
+  my $buildspec = $self->read_buildspec($file);
+
+  croak 'invalid buildspec.yml'
+    if !$self->validate_buildspec($buildspec);
 
   my %args;
 
-  if ( $buildspec->{min_perl_version} ) {
-    $args{M} = $buildspec->{min_perl_version};
+  if ( $buildspec->{'min-perl-version'} ) {
+    $args{M} = $buildspec->{'min-perl-version'};
   }
 
-  if ( $buildspec->{version_from} || $buildspec->{'version-from'} ) {
-    $args{V} = $buildspec->{version_from} // $buildspec->{'version-from'};
+  if ( $buildspec->{'version-from'} ) {
+    $args{V} = $buildspec->{'version-from'};
   }
 
   if ($project_root) {
@@ -901,8 +987,8 @@ sub parse_buildspec {
     $args{F} = $postamble;
   }
 
-  if ( $buildspec->{exe_files} ) {
-    $args{e} = $self->create_temp_filelist( $project_root, $buildspec->{exe_files} );
+  if ( $buildspec->{'exe-files'} ) {
+    $args{e} = $self->create_temp_filelist( $project_root, $buildspec->{'exe-files'} );
   }
 
   if ( $buildspec->{tests} ) {
@@ -917,9 +1003,9 @@ sub parse_buildspec {
 
   %args = $self->parse_project( $buildspec->{project}, %args );
 
-  %args = $self->parse_pm_module( $buildspec->{pm_module}, %args );
+  %args = $self->parse_pm_module( $buildspec->{'pm-module'}, %args );
 
-  %args = $self->parse_include_version( $buildspec->{include_version}, %args );
+  %args = $self->parse_include_version( $buildspec->{'include-version'}, %args );
 
   %args = $self->parse_dependencies( $buildspec->{dependencies}, %args );
 
@@ -934,7 +1020,7 @@ sub parse_buildspec {
 
   %args = $self->write_provides( $buildspec->{provides}, %args );
 
-  %args = $self->write_pl_files( $buildspec->{pl_files}, %args );
+  %args = $self->write_pl_files( $buildspec->{'pl-files'}, %args );
 
   if ( my $links = $buildspec->{'man-links'} ) {
     my $man_links_content = $self->_generate_man_links($links);
@@ -1034,7 +1120,7 @@ sub fetch_requires {
   my ( $self, %args ) = @_;
 
   my ( $requires, $core_modules, $min_perl_version, $include_version )
-    = @args{qw(requires core_modules min_perl_version include_version)};
+    = @args{qw(requires include_core_modules min_perl_version include_version)};
 
   my $logger = $self->get_logger;
 
@@ -1058,7 +1144,7 @@ sub fetch_requires {
       return $line if !defined $line;
       return $line if $core_modules;
       return $line if $line =~ /^[+]/xsm;
-      return $self->is_core( $line, $min_perl_version ) ? undef : $line;
+      return is_core( $line, $min_perl_version ) ? undef : $line;
     },
     process => sub {
       my $line = pop @_;
@@ -1098,68 +1184,29 @@ sub get_modules {
 }
 
 ########################################################################
-sub get_yaml_specfile {
+sub validate_buildspec {
 ########################################################################
-  my ($self) = @_;
+  my ( $self, $buildspec ) = @_;
 
-  require File::ShareDir;
-  my $distdir = File::ShareDir::dist_dir('CPAN-Maker');
-  my $file    = sprintf '%s/%s', $distdir, 'buildspec-specfile.yml';
+  return $TRUE
+    if !$self->get_validate;
 
-  open my $fh, '<', $file
-    or die "ERROR: could not open $file for reading: $OS_ERROR\n";
+  my $schema_file = eval { dist_file( 'CPAN-Maker', 'buildspec-schema.json' ) };
 
-  my ($lines) = process_file(
-    $fh,
-    chomp     => $TRUE,
-    next_line => sub {
-      my ( $fh, $all_lines, $args ) = @_;
-
-      my $line = <$fh>;
-
-      return
-        if !$line || $line =~ /^\=pod/xsm;  # signal end of file
-
-      return $line;
-    }
-  );
-
-  close $fh;
-
-  return Load join "\n", @{$lines};
-}
-
-########################################################################
-sub validate_object {
-########################################################################
-  my ( $self, $obj, $spec, $err ) = @_;
-
-  $err = $err // 0;
-
-  if ( reftype($obj) eq 'HASH' ) {
-    foreach my $k ( keys %{$obj} ) {
-      if ( !exists $spec->{$k} ) {
-        carp "ERROR: not a valid key ($k)\n" . Dumper [ $k, $spec ];
-        $err++;
-      }
-
-      if ( ref $spec->{$k} ) {
-        if ( !ref $obj->{$k}
-          || reftype( $obj->{$k} ) ne reftype( $spec->{$k} ) ) {
-          warn "ERROR: wrong type for ($k) - $k must be " . reftype( $spec->{$k} ) . "\n";
-          $err++;
-        }
-        else {
-          $self->validate_object( $obj->{$k}, $spec->{$k}, $err );
-        }
-      }
-    }
-  }
-  else {  # just validate arrays are arrays for now, deep dive TBD
-    $err = reftype($spec) =~ /ARRAY|HASH/xsm;
+  if ( !$schema_file || !-e $schema_file ) {
+    $self->get_logger->warn('buildspec-schema.json not found - skipping validation');
+    return $TRUE;
   }
 
-  return $err ? $FALSE : $TRUE;
+  my @errors = JSON::Validator->new->schema($schema_file)->validate($buildspec);
+
+  if (@errors) {
+    $self->get_logger->error('buildspec.yml validation failed:');
+    $self->get_logger->error( ' - ' . $_ ) for @errors;
+    return $FALSE;
+  }
+
+  return $TRUE;
 }
 
 ########################################################################
@@ -1171,7 +1218,7 @@ sub _min_perl_version {
     return $self->get_min_perl_version
       if $self->get_min_perl_version;
 
-    return $self->get_perl_version( $self->get_requires )
+    return $self->fetch_perl_version( $self->get_requires )
       if $self->get_requires;
 
     return $DEFAULT_PERL_VERSION;
@@ -1220,19 +1267,28 @@ sub main {
     scripts-path=s
     test-requires|t=s
     tests-path=s
+    validate!
     verbose|V
     version-from=s
     version|v
     work-dir|w=s
   );
 
-  my $default_options = { cleanup => $TRUE, pager => $TRUE, require_versions => $TRUE };
+  my $is_json_validator_available = eval { require JSON::Validator; 1 };  # default: true if available
+
+  my $default_options = {
+    cleanup          => $TRUE,
+    pager            => $TRUE,
+    require_versions => $TRUE,
+    validate         => $is_json_validator_available // $FALSE,
+  };
 
   my %commands = (
-    default  => \&cmd_parse,
-    parse    => \&cmd_parse,
-    version  => \&cmd_version,
-    makefile => \&cmd_makefile,
+    default          => \&cmd_build,
+    build            => \&cmd_build,
+    version          => \&cmd_version,
+    'write-makefile' => \&cmd_makefile,
+    'validate'       => \&cmd_validate,
   );
 
   my $cli = CPAN::Maker->new(
@@ -1246,56 +1302,6 @@ sub main {
 
 1;
 
-__DATA__
----
-version: "@PACKAGE_VERSION@"
-min_perl_version: "type:string"
-min-perl-version: "type:string"
-project:
-  git: "type:string"
-  description: "type:string"
-  author:
-    name: "type:string"
-    mailto: "type:string"
-pm_module:
-include_version: "type:boolean"
-include-version: "type:boolean"
-dependencies:
-  resolver: "type:string"
-  path: "type:string"
-  requires: "type:string"
-  test_requires: "type:string"
-  build_requires: "type:string"
-  core_modules: "type::boolean"
-  required_modules: "type:boolean"
-  recommends: "type:string"
-pl_files:
-postamble: "type:string"
-path:
-  recurse: "type:boolean"
-  pm_module: "type:string"
-  tests: "type:string"
-  exe_files: "type:string"
-  scripts: "type:string"
-  exclude_files: "type:string"
-extra: "type:string"
-extra-files:
-provides: "type:string"
-resources:
-  homepage: "type:string"
-  bugtracker:
-    web: "type:string"
-    mailto: "type:string"
-  repository:
-    url: "type:string"
-    web: "type:string"
-    type: "type:string"
-scripts:
-exe_files:
-version-from: "type:string"
-man-links:
-
-
 __END__
 
 =pod
@@ -1306,46 +1312,9 @@ CPAN::Maker - create a CPAN distribution
 
 =head1 SYNOPSIS
 
- make-cpan-dist.pl options
+ cpan-maker options
 
- make-cpan-dist.pl -b buildspec.yml
-
-=head1 DESCRIPTION
-
-Utility that is part of a toolchain to create a CPAN distribution.
-
-This utility should normally be called with the C<--buildspec> option
-specifying a YAML file that describes the distribution to be
-packaged. The toolchain can:
-
-=over 5
-
-=item * find Perl module dependencies in your modules and scripts
-
-=item * create a C<Makefile.PL>
-
-=item * package your artifacts from your project hierarchy into a CPAN distribution
-
-=back
-
-If the script is passed a YAML file (C<--buildspec>) then the script
-will parse the build specification and call the bash script
-C<make-cpan-dist> with all of the necessary flags to build a
-tarball. If you do not provide a build specification this script will
-only create the C<Makefile.PL> file for you.  It will be left to you
-to modify the C<Makefile.PL> if necessary and then package the
-artifacts into a CPAN distribution.
-
-You can also call the bash script yourself, supplying all of the
-necessary options.  When L<using the bash script|/"USING THE BASH
-SCRIPT">, it will ultimately call this script to create the
-C<Makefile.PL> and before creating your CPAN distribution.
-
-=head1 USAGE
-
- make-cpan-dist.pl -b buildspec.yml
-
- make-cpan-dist.pl options
+ cpan-maker -b buildspec.yml
 
 =head2 Options
 
@@ -1389,6 +1358,82 @@ C<make-cpan-dist> bash script that actually creates the CPAN
 distribution.
 
 See man CPAN::Maker for more details.
+
+=head2 Commands
+
+=over 4
+
+=item * build
+
+Parse a C<buildspec.yml> file and build the CPAN distribution tarball.
+This is the default command - it is invoked automatically when
+C<-b buildspec.yml> is passed without an explicit command.
+
+  cpan-maker build -b buildspec.yml
+  cpan-maker -b buildspec.yml
+
+=item * validate
+
+Validate a C<buildspec.yml> file against the JSON Schema. Reports all
+errors before exiting. Returns a non-zero exit status if validation
+fails, making it suitable for use in CI pipelines.
+
+  cpan-maker validate
+  cpan-maker validate path/to/buildspec.yml
+  cpan-maker -b path/to/buildspec.yml validate
+
+I<Note: If your file uses underscore-style keys (C<pm_module>,
+C<extra_files>, etc.) they are automatically normalized to their
+canonical hyphenated forms and a corrected copy is written to
+`buildspec.yml.current`. Useful as a first step when migrating an
+existing project or upgrading C<CPAN::Maker>.>
+
+=item * write-makefile
+
+Generate a C<Makefile.PL> from the options passed by the
+C<make-cpan-dist> bash script. This command is invoked internally
+during the build pipeline and is not intended for direct use.
+
+=item * version
+
+Print the installed version of C<CPAN::Maker> and exit.
+
+  cpan-maker version
+
+=back
+
+See man CPAN::Maker for more details.
+
+=head1 DESCRIPTION
+
+Utility that is part of a toolchain to create a CPAN distribution.
+
+This utility should normally be called with the C<--buildspec> option
+specifying a YAML file that describes the distribution to be
+packaged. The toolchain can:
+
+=over 5
+
+=item * find Perl module dependencies in your modules and scripts
+
+=item * create a C<Makefile.PL>
+
+=item * package your artifacts from your project hierarchy into a CPAN distribution
+
+=back
+
+If the script is passed a YAML file (C<--buildspec>) then the script
+will parse the build specification and call the bash script
+C<make-cpan-dist> with all of the necessary flags to build a
+tarball. If you do not provide a build specification this script will
+only create the C<Makefile.PL> file for you.  It will be left to you
+to modify the C<Makefile.PL> if necessary and then package the
+artifacts into a CPAN distribution.
+
+You can also call the bash script yourself, supplying all of the
+necessary options.  When L<using the bash script|/"USING THE BASH
+SCRIPT">, it will ultimately call this script to create the
+C<Makefile.PL> and before creating your CPAN distribution.
 
 =head1 ENVIRONMENT VARIABLES
 
@@ -1436,7 +1481,7 @@ that options like -l will be relative to the current directory.>
 
 =head2 Using F<buildspec.yml>
 
- make-cpan-dist.pl -b buildspec.yml
+ cpan-maker -b buildspec.yml
 
 Calling this utility directly with the C<-b> option will parse the
 buildspec and invoke the C<bash> script with all of the appropriate
@@ -1499,11 +1544,11 @@ process.
 
 Typically used when calling the bash script directly, this will output
 the command to be executed and all of the options to
-F<make-cpan-dist.pl>.
+F<cpan-maker>.
 
 =item -h, --help
 
-Print the options to F<make-cpan-dist.pl> to STDOUT. For more help try
+Print the options to F<cpan-maker> to STDOUT. For more help try
 C<make-cpan-dist -h> for the options to the bash script.
 
 Additional information can be found
@@ -1621,19 +1666,19 @@ Example:
     author:
       name: Rob Lauer
       mailto: rlauer6@comcast.net
-  pm_module: Amazon::Credentials
+  pm-module: Amazon::Credentials
   include-version: no
   dependencies:
     resolver: scandeps
     requires: requires
-    test_requires: test-requires
-    required_modules: no
+    test-requires: test-requires
+    required-modules: no
   path:
     recurse: yes
-    pm_module: src/main/perl/lib
+    pm-module: src/main/perl/lib
     tests: src/main/perl/t
-    exe_files: src/main/perl/bin
-  exclude_files: exclude_files
+    exe-files: src/main/perl/bin
+  exclude-files: exclude_files
   extra: extra-files
   extra-files:
     - file
@@ -1712,7 +1757,7 @@ The author's email address.
 
 =back
 
-=item pm_module
+=item pm-module
 
 The name of the Perl module.
 
@@ -1787,11 +1832,11 @@ Example F<recommends> file:
 
 Fully qualified path to a dependency list for module.
 
-=item test_requires
+=item test-requires
 
 Fully qualified path to a dependency list for tests.
 
-=item build_requires
+=item build-requires
 
 Fully qualified path to a dependency list for build.
 
@@ -1810,7 +1855,7 @@ When preparing the list of files to list as requirements in the
 C<PREREQ_PM> section of the C<Makefile.PL>, the script will
 automatically remove any modules that are already included with Perl.
 
-=item required_modules
+=item required-modules
 
 If the resolver should look for modules that are C<required>d by your
 scripts and modules.
@@ -1823,7 +1868,7 @@ default: yes
 
 =over 15
 
-=item pm_module
+=item pm-module
 
 The path where the Perl module to be packaged can be found.  By
 default, the current working directory will be searched or the root of
@@ -1843,7 +1888,7 @@ default: yes
 The path where tests to be specified in the F<Makefile.PL> will be
 found.
 
-=item exe_files
+=item exe-files
 
 Path where executable Perl modules will be found. Files that are to be
 included in the distribution must have executable permissions.
@@ -1871,7 +1916,7 @@ By default the package will specify the primary module to be packaged
 and any additional modules that were found if the C<recurse> option
 was set to 'yes'.
 
-=item --recommends
+=item recommends
 
 Name of a file containing optional recommended dependencies. These are
 modules that enhance functionality but are not required for basic
@@ -1951,12 +1996,21 @@ root of the tarball but will not be installed.>
 Array of script names or a path to the scripts that should be included
 in the distribution. Files should be relative to the project root.
 
-=item exe_files
+=item exe-files
 
 Array of Perl script names or a path to the scripts that should be included
 in the distribution. Files should be relative to the project root.
 
 =back
+
+=head2 Key Naming
+
+Keys in the buildspec may be written with either hyphens (C<pm-module>)
+or underscores (C<pm_module>). The hyphenated form is canonical.
+If underscore keys are detected, they are automatically normalized before
+parsing and a corrected copy of your buildspec is written to
+F<buildspec.yml.current> for your reference. Your original file is
+never modified.
 
 =head1 DEPENDENCIES
 
@@ -1981,11 +2035,11 @@ L<C<cpanfile>|/"dependencies">.
 
 Example:
 
- AWS::Signature4 1.02
+ AWS::Signature4::Lite 1.0.0
  ...
 
 =head1 AUTHOR
 
-Rob Lauer - <rlauer6@comcast.net>
+Rob Lauer - <rlauer@treasurersbriefcase.com>
 
 =cut

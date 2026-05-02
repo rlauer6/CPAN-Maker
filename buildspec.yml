@@ -4,20 +4,20 @@ project:
   author:
     name: Rob Lauer
     mailto: rclauer@gmail.com
-pm_module: CPAN::Maker
+pm-module: CPAN::Maker
 min-perl-version: 5.010
 dependencies:
   requires: requires
-  test_requires: test-requires
+  test-requires: test-requires
 path:
-  pm_module: lib
-  exe_files: bin
+  pm-module: lib
+  exe-files: bin
   tests: t
 extra-files:
   - ChangeLog
   - share:
       - README.md
-      - buildspec-specfile.yml
+      - buildspec-schema.json
 resources:
   bugtracker:
     mailto: rclauer@gmail.com

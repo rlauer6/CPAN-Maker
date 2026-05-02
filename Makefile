@@ -8,23 +8,28 @@ SHELL := /bin/bash
 
 VERSION := $(shell test -e VERSION || echo 1.0.0 > VERSION; cat VERSION)
 
+BOOTSTRAPPER_VERSION := $(shell perl -MCPAN::Maker::Bootstrapper -e 'print $$CPAN::Maker::Bootstrapper::VERSION;' 2>/dev/null || true) 
+
 MODULE_NAME  ?= $(shell SOURCE=$(pwd) perl -MCwd=abs_path -MFile::Basename=basename -e '$$m=basename(abs_path($$ENV{SOURCE})); $$m =~s/\-/::/g; print $$m')
 
 MODULE_PATH = lib/$(shell echo $(MODULE_NAME) | perl -npe 's/::/\//g;').pm
 
 PROJECT_NAME ?= $(shell echo $(MODULE_NAME) | sed -e 's/::/-/g;')
 
+LOG_LEVEL ?= info
+
 NO_ECHO ?= @
 
 UNIT_TEST_NAME = $(shell TEST_NAME=$(PROJECT_NAME) perl -e 'printf q{t/00-%s.t}, lc $$ENV{TEST_NAME}')
 
-MAKE_CPAN_DIST := $(shell command -v make-cpan-dist.pl)
-SCANDEPS       := $(shell command -v scandeps-static.pl)
-POD2MARKDOWN   := $(shell command -v pod2markdown)
-GIT            := $(shell command -v git)
-PODEXTRACT     := $(shell command -v podextract)
-MD_UTILS       := $(shell command -v md-utils.pl)
 BOOTSTRAPPER   := $(shell command -v bootstrapper)
+DOCKER         := $(shell command -v docker)
+GIT            := $(shell command -v git)
+MAKE_CPAN_DIST := $(shell command -v make-cpan-dist.pl)
+MD_UTILS       := $(shell command -v md-utils.pl)
+POD2MARKDOWN   := $(shell command -v pod2markdown)
+PODEXTRACT     := $(shell command -v podextract)
+SCANDEPS       := $(shell command -v scandeps-static.pl)
 
 GIT_NAME     ?= $(shell $(GIT) config --global user.name || echo "Anonymouse")
 GIT_EMAIL    ?= $(shell $(GIT) config --global user.email || echo "anonymouse@example.org")
@@ -53,7 +58,7 @@ TARBALL = $(PROJECT_NAME)-$(VERSION).tar.gz
 
 .DEFAULT_GOAL := all
 
-all: $(TARBALL) ## builds distribution tarball and dependencies
+all: update-available $(TARBALL) ## builds distribution tarball and dependencies
 
 include .includes/perl.mk
 
@@ -95,7 +100,7 @@ DEPS = \
 $(TARBALL): $(DEPS) \
     $(if $(tidy_on), $(PERL_MODULES:%=%.tdy) $(PERL_BIN_FILES:%=%.tdy)) \
     $(if $(critic_on), $(PERL_MODULES:%=%.crit) $(PERL_BIN_FILES:%=%.crit))
-	$(MAKE_CPAN_DIST) -b $<
+	$(MAKE_CPAN_DIST) -l $(LOG_LEVEL) -b $<
 
 module.pm.tmpl:
 	$(NO_ECHO)if [[ -n "$(STUB)" ]]; then \
@@ -112,9 +117,13 @@ $(MODULE_PATH).in: | module.pm.tmpl
 	    -e 's/[@]GIT_EMAIL[@]/$(GIT_EMAIL)/' < $< > $@
 
 test.t.tmpl:
-	$(NO_ECHO)template=$$(perl -MFile::ShareDir=dist_file -e 'print dist_file(q{CPAN-Maker-Bootstrapper}, q{$@});' 2>/dev/null); \
-	test -n "$$template" && cp $$template $@ || touch $@; \
-	chmod 0644 $$template
+	$(NO_ECHO)template=$$(perl -MFile::ShareDir=dist_file -e 'print dist_file(q{CPAN-Maker-Bootstrapper}, q{$@});' 2>/dev/null || true); \
+	if [[ -n "$$template" ]]; then \
+	  cp $$template $@; \
+	else \
+	  touch $@; \
+	fi; \
+	chmod 0644 $@
 
 $(UNIT_TEST_NAME): | test.t.tmpl
 	$(NO_ECHO)sed -e 's/[@]MODULE_NAME[@]/$(MODULE_NAME)/' < test.t.tmpl > $@
@@ -153,10 +162,14 @@ define scan-deps
 	dep_requires=$$(mktemp); \
 	packages=$$(mktemp); \
 	cleanfiles="$$cleanfiles $$dep_requires $$packages $(1).tmp"; \
+	min_perl_version=$$(perl -MYAML::Tiny=LoadFile -e 'print LoadFile(q{buildspec.yml})->{q{min-perl-version}};'); \
+	if [[ -n "$$min_perl_version" ]]; then \
+	  min_perl_version="-m $$min_perl_version"; \
+	fi; \
 	for a in $$(find $(2) -name "$(3)"); do \
 	  perl -ne 'print "$$1\n" if /^package +(.*?);/' $$a >> $$packages; \
 	  echo >&2 "Scanning...$$a"; \
-	  $(SCANDEPS) -r --no-core $$a | awk '{printf "%s %s\n", $$1,$$2}' >> $$dep_requires; \
+	  $(SCANDEPS) -r $$min_perl_version --no-core $$a | awk '{printf "%s %s\n", $$1,$$2}' >> $$dep_requires; \
 	done; \
 	if test -s "$$dep_requires"; then \
 	  sort -u $$dep_requires > $(1).tmp; \
@@ -257,10 +270,13 @@ ChangeLog:
 	$(NO_ECHO)test -e $@ || touch $@
 
 buildspec.yml.tmpl:
-	$(NO_ECHO)template=$$(perl -MFile::ShareDir=dist_file -e 'print dist_file(q{CPAN-Maker-Bootstrapper}, q{$@});'); \
-	echo $$template; \
-	test -n "$$template" && cp $$template $@ || echo touch $@; \
-	chmod 0644 $$template
+	$(NO_ECHO)template=$$(perl -MFile::ShareDir=dist_file -e 'print dist_file(q{CPAN-Maker-Bootstrapper}, q{$@});' 2>/dev/null || true); \
+	if [[ -n "$$template" ]]; then \
+	  cp $$template $@; \
+	else \
+	  touch $@; \
+	fi; \
+	chmod 0644 $@
 
 buildspec.yml: | buildspec.yml.tmpl
 	$(NO_ECHO)buildspec=$$(mktemp); \
@@ -309,3 +325,43 @@ clean: ## removes temporary build artifacts
 .PHONY: basedir
 basedir:
 	$(NO_ECHO)echo $(BASEDIR)
+
+.PHONY: workflow
+workflow:
+	$(NO_ECHO)dist_dir=$$(perl -MFile::ShareDir=dist_dir -e 'print dist_dir(q{CPAN-Maker-Bootstrapper});' 2>/dev/null || true); \
+	if [[ -z "$$dist_dir" ]]; then \
+	  echo >&2 "ERROR: could not determine CPAN::Maker::Bootstrapper share directory"; \
+	  exit 1; \
+	fi; \
+	pwd=$$(pwd); \
+	cp $$dist_dir/builder $$pwd; \
+	chmod +x $$pwd/builder; \
+	echo "https://cpan.metacpan.org" >$$pwd/build-mirrors; \
+	cp $$dist_dir/build-apt-deps $$pwd; \
+	build_requires="$$(mktemp)"; trap 'rm -f $$build_requires' EXIT; \
+	test -e build-requires || touch build-requires; \
+	cp build-requires $$build_requires; \
+	cat $$dist_dir/build-requires >>$$build_requires; \
+	sort -u $$build_requires > build-requires; \
+	mkdir -p $$pwd/.github/workflows; \
+	cp $$dist_dir/build.yml $$pwd/.github/workflows/build.yml; \
+	echo "** Installed build-requires, builder, .github/workflows/build.yml"; \
+	echo "** Add to your repo:"; \
+	echo "git add build-requires builder .github/workflows/build.yml"
+
+DOCKER_BUILD_IMAGE ?= debian:trixie
+BRANCH             ?= $(shell git branch --show-current)
+BUILDER            ?= builder
+BUILD_LOG          ?= $(shell echo "build-$$(date +'%Y%m%d%H%M%S').log")
+INSTALLER          ?= cpanm
+
+.PHONY: build-ci
+build-ci:
+	test -n "$(DOCKER)" || (echo "docker unavailable: install docker or set DOCKER" && exit 1); \
+	test -x "$$(pwd)/$(BUILDER)" || (echo "no builder. set BUILDER or run make workflow to install builder" && exit 1); \
+	repo_url="https://github.com/$(GITHUB_USER)/$(PROJECT_NAME).git"; \
+	$(DOCKER) run --rm -v "$$(pwd)/$(BUILDER):/builder:ro" \
+	  -e GITHUB_REF_NAME=$(BRANCH) \
+	  -e INSTALLER=$(INSTALLER) \
+	  $(DOCKER_BUILD_IMAGE) \
+	  /bin/bash /builder "$$repo_url" 2>&1 | tee $(BUILD_LOG)
