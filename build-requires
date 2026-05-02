@@ -2,5 +2,4 @@ Module::ScanDeps::Static
 Module::CPANfile
 Markdown::Render@1.0.4
 YAML::Tiny
-Text::CSV_XS
-Pod::Markdown
+CPAN::Maker@1.8.5

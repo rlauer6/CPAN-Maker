@@ -8,7 +8,7 @@ MANAGED_FILES = \
     release-notes.mk
 
 BOOTSTRAPPER_DIST_DIR := $(shell perl -MFile::ShareDir=dist_dir \
-    -e 'print dist_dir(q{CPAN-Maker-Bootstrapper})' 2>/dev/null)
+    -e 'print dist_dir(q{CPAN-Maker-Bootstrapper})' 2>/dev/null || true)
 
 .PHONY: update
 
@@ -35,3 +35,16 @@ update:
 	chmod +w Makefile .includes/*
 	$(MAKE) post-update
 
+.PHONY: update-available
+update-available:
+	@if [[ -n "$(BOOTSTRAPPER_VERSION)" ]]; then \
+	  dist=$$(cpanm --info -l /dev/null 2>/dev/null CPAN::Maker::Bootstrapper || true); \
+	  if [[ "$$dist" =~ -([0-9.]+)\.tar\.gz$$ ]]; then \
+	    version="$${BASH_REMATCH[1]}"; \
+	    if [[ "$(BOOTSTRAPPER_VERSION)" = "$$version" ]]; then \
+	      echo "CPAN::Maker::Bootstrapper $$version is up-to-date."; \
+	    else \
+	      echo "CPAN::Maker::Bootstrapper $$version available!"; \
+	    fi; \
+	  fi; \
+	fi

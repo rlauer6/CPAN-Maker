@@ -160,17 +160,18 @@ sub write_extra_files {
     }
   }
 
-  if (@file_list) {
-    open my $fh, '>', $extra_files_path
-      or die "ERROR: could not append to $extra_files_path\n";
+  return %args
+    if !@file_list;
 
-    foreach my $f (@file_list) {
-      print {$fh} "$f\n";
-    }
+  open my $fh, '>', $extra_files_path
+    or die "ERROR: could not append to $extra_files_path\n";
 
-    close $fh
-      or die "ERROR: could not close $extra_files_path\n";
+  foreach my $f (@file_list) {
+    print {$fh} "$f\n";
   }
+
+  close $fh
+    or die "ERROR: could not close $extra_files_path\n";
 
   $args{f} = $extra_files_path;
 
@@ -192,18 +193,18 @@ sub parse_path {
     }
 
     # -l
-    if ( $path->{pm_module} ) {
-      $args{l} = $path->{pm_module};
+    if ( $path->{'pm-module'} ) {
+      $args{l} = $path->{'pm-module'};
     }
 
-    if ( $path->{exclude_files} ) {
-      $args{E} = $path->{exclude_files};
+    if ( $path->{'exclude-files'} ) {
+      $args{E} = $path->{'exclude-files'};
     }
 
     # -e
-    if ( $path->{exe_files} ) {
-      if ( $self->check_path( $project_root, $path->{exe_files}, 'exe_files' ) ) {
-        $args{e} = $path->{exe_files};
+    if ( $path->{'exe-files'} ) {
+      if ( $self->check_path( $project_root, $path->{'exe-files'}, 'exe-files' ) ) {
+        $args{e} = $path->{'exe-files'};
       }
     }
 

@@ -1,13 +1,18 @@
 #!/usr/bin/env bash
 # -*- mode: sh; -*-
-
 ########################################################################
-# - GitHub Actions CI script
-# - You can also run locally in a Docker container to verify build
+#  GitHub Actions CI script
+########################################################################
+#
+# To run locally:
 #
 #   docker run --rm -v "$(pwd)/build-github:/build-github:ro" debian:trixie \
-#      -e GITHUB_REF_NAME=dev \
+#      -e GITHUB_REF_NAME=$BRANCH \
 #      bash /build-github https://github.com/rlauer6/Amazon-S3-Lite.git
+#
+#  --or--
+#
+#  make build-ci
 #
 ########################################################################
 
@@ -41,10 +46,34 @@ REPO="$1"
 set -euo pipefail
 set -x
 
+########################################################################
 # libexpat, libssl, libzip required for building certain CPAN
-# distributions like LibXML::XML, Net::SSLeay, etc.
-# TBD: might be better to create build-libs file?
-LIB_DEPS=(libexpat-dev libssl-dev libzip-dev autoconf automake make)
+# distributions like XML::Twig, Net::SSLeay, etc.
+#
+# Add you any additional libraries you need to this list:
+########################################################################
+LIB_DEPS=(libexpat-dev libssl-dev libzip-dev)
+
+########################################################################
+# Uncomment the next line if you are using a mirror.
+#-----------------------------------------------------------------------
+# # `cpanm` has a bug in HTTP::Tinyish::Curl that does not cleanup the
+# 02packages.details.txt.gz file when curl fails to find it.  So far
+# the author has been unwilling to fix the bug or accept a PR.  cpanm
+# will use LWP instead if it is installed, so we'll use the workaround
+# for now.
+########################################################################
+EXTRA_DEPS=(LWP LWP::Protocol::https)
+
+########################################################################
+# Uncomment this line to enable perltidy
+########################################################################
+EXTRA_DEPS+=(Perl::Tidy)
+
+########################################################################
+# Uncomment this line to enable perlcritic
+########################################################################
+EXTRA_DEPS+=(Perl::Critic)
 
 apt-get update && apt-get install -y \
   git \
@@ -57,8 +86,14 @@ apt-get update && apt-get install -y \
 
 curl -L https://cpanmin.us | perl - App::cpanminus 
 
+########################################################################
+# Add your mirror to the list to use a DarkPAN mirror
+########################################################################
 MIRRORS=(--mirror https://cpan.openbedrock.net/orepan2 --mirror https://cpan.metacpan.org)
-export PERL_CPANM_OPT="-n -v ${MIRRORS[@]} --mirror-only"
+
+cpanm -n -v "${EXTRA_DEPS[@]}"
+
+export PERL_CPANM_OPT="-n -v ${MIRRORS[@]}"
 
 if [[ -n "$REPO" ]]; then
     git clone $REPO
@@ -73,7 +108,38 @@ fi
 
 install_deps
 
-./bootstrap && ./configure
-make
-cd cpan && make cpan
+########################################################################
+# Note that we deliberately do the robust build:
+# LINT=on, SCAN=on, PERLCRITIC=on, PERLTIDY=on
+#-----------------------------------------------------------------------
+# If your build does not work with these on, try turning them
+# off by uncommenting the lines below.
+#-----------------------------------------------------------------------
+# LINT=off
+# SYNTAX_CHECKING=off
+# PERLTIDYRC=""
+# PERLCRITICRC=""
+# SCAN=off
+########################################################################
 
+########################################################################
+# Uncomment these to increase verbosity level of the build
+########################################################################
+# make-cpan-dist debug mode
+#-----------------------------------------------------------------------
+# DEBUG=1
+########################################################################
+
+########################################################################
+# make-cpan-dist.pl log level
+#-----------------------------------------------------------------------
+# LOG_LEVEL=trace
+########################################################################
+
+########################################################################
+# Full output of make steps
+#-----------------------------------------------------------------------
+# export NO_ECHO=""
+########################################################################
+
+make
