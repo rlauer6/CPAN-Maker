@@ -1,0 +1,31 @@
+# need this to enable Community overrides
+exclude = Freenode
+
+[-ValuesAndExpressions::ProhibitConstantPragma]
+[-Miscellanea::ProhibitUselessNoCritic]
+[-ErrorHandling::RequireCarping]
+[-Modules::RequireVersionVar]
+[-NamingConventions::Capitalization]
+[-Compatibility::PodMinimumVersion]
+[-Modules::ProhibitMultiplePackages]
+
+[Subroutines::RequireArgUnpacking]
+short_subroutine_statements = 3
+allow_subscripts = 1
+
+[InputOutput::RequireCheckedSyscalls]
+functions = :defaults
+exclude_functions = print
+ 
+[ControlStructures::ProhibitPostfixControls]
+flowcontrol=skip carp cluck confess croak die exit goto warn LOGCROAK LOGCLUCK LOGCARP LOGCONFESS LOGDIE LOGEXIT LOGWARN BAIL_OUT plan log_die logdie confirm log_warn log_info exec
+
+[Documentation::RequirePodSections]
+lib_sections    = SYNOPSIS | DESCRIPTION | METHODS AND SUBROUTINES | AUTHOR
+script_sections = NAME | SYNOPSIS | DESCRIPTION | AUTHOR
+
+[-Documentation::PodSpelling]
+stop_words = Wessels cleanseHTML Lauer perl deps Makefile sitename convertHTML dateNow julian YYYY STDERR encodeNoIMG stripHTML html json JSON DWIM
+
+[Community::PreferredAlternatives]
+allowed_modules = JSON Readonly

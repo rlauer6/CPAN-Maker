@@ -1,0 +1,109 @@
+# Final parameter set for this run.
+# See utility 'perltidyrc_dump.pl' for nicer formatting.
+
+# PBP option, sorted by appearance within alias
+--perl-best-practices
+# --perl-best-practices --> l=78 i=4 ci=4 st se vt=2 cti=0 pt=1 bt=1 sbt=1 bbt=1 nsfs nolq wbb=% + - * / x != == >= <= =~ !~ < > | & = **= += *= &= <<= &&= -= /= |= >>= ||= //= .= %= ^= x=
+# PBP Unchanged
+--maximum-line-length=128
+--continuation-indentation=2
+--vertical-tightness=2
+--closing-token-indentation=0
+--paren-tightness=1
+--brace-tightness=1
+--square-bracket-tightness=1
+--block-brace-tightness=1
+--nospace-for-semicolon
+--nooutdent-long-quotes
+--want-break-before="% + - * / x != == >= <= =~ !~ < > | & = **= += *= &= <<= &&= -= /= |= >>= ||= //= .= %= ^= x="
+
+# PBP Changed
+--indent-columns=2
+--nostandard-output
+--nostandard-error-output
+
+# Default options, appearance in `man perltidy`
+# Unchanged
+--nowarning-output
+--noquiet
+--nologfile
+--noshow-options
+--notabs
+--iterations=1
+--noline-up-parentheses
+--closing-brace-indentation=0
+--closing-paren-indentation=0
+--closing-square-bracket-indentation=0
+--nooutdent-labels
+--nooutdent-long-comments
+--add-semicolons
+--delete-semicolons
+#--noadd-whitespace
+#--trim-qw
+--indent-block-comments
+--minimum-space-to-comment=2
+--hanging-side-comments
+--closing-side-comment-interval=2
+--closing-side-comment-maximum-text=20
+--closing-side-comments-balanced
+--closing-side-comment-else-flag=0
+--static-block-comments
+--static-side-comments
+--format-skipping
+--nocuddled-else
+--nobrace-left-and-indent
+--brace-vertical-tightness-closing=0
+--square-bracket-vertical-tightness-closing=0
+--paren-vertical-tightness-closing=0
+--block-brace-vertical-tightness=0
+--delete-old-newlines
+--add-newlines
+--comma-arrow-breakpoints=5
+--break-at-old-logical-breakpoints
+--break-at-old-keyword-breakpoints
+--break-at-old-ternary-breakpoints
+--break-at-old-attribute-breakpoints
+--blank-lines-before-subs=1
+--blank-lines-before-packages=1
+--blanks-before-blocks
+--long-block-line-count=8
+--maximum-consecutive-blank-lines=1
+--keep-old-blank-lines=1
+--valign
+--valign-exclusion-list=q
+--memoize
+--pass-version-line
+--nohtml
+--html-table-of-contents
+--pod2html
+--html-entities
+
+# Changed
+--backup-file-extension="tdy.bak/"        # delete if no errors
+--brace-vertical-tightness=2              # according PBP
+--square-bracket-vertical-tightness=2     # according PBP
+--paren-vertical-tightness=2              # according PBP
+--noblanks-before-comments
+--nolook-for-autoloader
+--nolook-for-selfloader
+
+# New
+# --nospace-after-keyword="my local our"     # keep default
+# --static-block-comment-prefix=^#{2,}[^\s#]
+--ignore-side-comment-lengths
+--noclosing-side-comments
+--opening-brace-always-on-right
+--novalign-side-comments
+# --stack-opening-tokens
+# --stack-closing-tokens
+
+
+# --default-tabsize=8
+# --format="tidy"
+# --fuzzy-line-length
+# --maximum-fields-per-table=0
+# --nocheck-syntax
+# --nodelete-old-whitespace
+# --perl-syntax-check-flags="-c -T"
+# --recombine
+# --short-concatenation-item-length=8

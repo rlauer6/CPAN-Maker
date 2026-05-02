@@ -1,4 +1,4 @@
-#!@bashrun@
+#!/usr/bin/env bash
 # -*- mode: sh; -*-
 
 ########################################################################
@@ -730,7 +730,7 @@ if [[ -s "$EXTRA" ]]; then
 
     while IFS=' ' read -r a b
     do
-        INFO "$a $b"
+        DEBUG "$a $b"
 
         if [[ -f "${PROJECT_HOME}/$a" ]]; then
             if [[ -n "$b" ]]; then
