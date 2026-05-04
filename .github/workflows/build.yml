@@ -1,9 +1,9 @@
 name: CPAN-Maker
 on:
   push:
-    branches: [ master ]
+    branches: [ main, master, dev ]
 jobs:
-  test-module:
+  cpan-maker:
     runs-on: ubuntu-latest
     container:
       image: debian:trixie
@@ -20,4 +20,4 @@ jobs:
         run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
 
       - name: build
-        run: ./build-github
+        run: ./builder

@@ -1,5 +1,7 @@
 CPAN::Maker@1.9.0
-Module::ScanDeps::Static
-Module::CPANfile
+File::ShareDir
+File::ShareDir::Install
 Markdown::Render@1.0.4
+Module::CPANfile
+Module::ScanDeps::Static
 YAML::Tiny

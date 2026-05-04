@@ -26,7 +26,7 @@ use JSON::Validator;
 use List::Util qw( pairs );
 use Log::Log4perl::Level;
 use Scalar::Util qw( reftype );
-use YAML::XS qw(Load Dump LoadFile);
+use YAML::Tiny qw(Load Dump LoadFile);
 use version;
 
 use Role::Tiny::With;
@@ -127,6 +127,11 @@ sub cmd_validate {
 ########################################################################
   my ($self) = @_;
 
+  my $is_validator_available = eval { require JSON::Validator; 1; };
+
+  die "ERROR: JSON::Validator must be installed to validate your 'buildspec.yml' file.\n"
+    if !$is_validator_available;
+
   my ($file) = $self->get_args;
   $file //= $self->get_buildspec // 'buildspec.yml';
 
@@ -157,8 +162,6 @@ sub cmd_build {
   my %args = $self->parse_buildspec;
 
   my $log_level = $self->get_log_level;
-
-  print {*STDERR} "log-level: $log_level\n";
 
   if ( $log_level =~ /^(?:[12345])$/xsm ) {
     $args{'-L'} = $log_level;
@@ -1186,6 +1189,9 @@ sub validate_buildspec {
 ########################################################################
   my ( $self, $buildspec ) = @_;
 
+  return $TRUE
+    if !$self->get_validate;
+
   my $schema_file = eval { dist_file( 'CPAN-Maker', 'buildspec-schema.json' ) };
 
   if ( !$schema_file || !-e $schema_file ) {
@@ -1262,13 +1268,21 @@ sub main {
     scripts-path=s
     test-requires|t=s
     tests-path=s
+    validate!
     verbose|V
     version-from=s
     version|v
     work-dir|w=s
   );
 
-  my $default_options = { cleanup => $TRUE, pager => $TRUE, require_versions => $TRUE };
+  my $is_json_validator_available = eval { require JSON::Validator; 1 };  # default: true if available
+
+  my $default_options = {
+    cleanup          => $TRUE,
+    pager            => $TRUE,
+    require_versions => $TRUE,
+    validate         => $is_json_validator_available // $FALSE,
+  };
 
   my %commands = (
     default          => \&cmd_build,
@@ -1353,7 +1367,8 @@ See man CPAN::Maker for more details.
 =item * build
 
 Parse a C<buildspec.yml> file and build the CPAN distribution tarball.
-This is the default command — it is invoked automatically when
+This is the default command - it is invoked automatically when
+
 C<-b buildspec.yml> is passed without an explicit command.
 
   cpan-maker build -b buildspec.yml

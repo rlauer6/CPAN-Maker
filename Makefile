@@ -8,7 +8,7 @@ SHELL := /bin/bash
 
 VERSION := $(shell test -e VERSION || echo 1.0.0 > VERSION; cat VERSION)
 
-BOOTSTRAPPER_VERSION := $(shell perl -MCPAN::Maker::Bootstrapper -e 'print $$CPAN::Maker::Bootstrapper::VERSION;' 2>/dev/null) 
+BOOTSTRAPPER_VERSION := $(shell perl -MCPAN::Maker::Bootstrapper -e 'print $$CPAN::Maker::Bootstrapper::VERSION;' 2>/dev/null || true) 
 
 MODULE_NAME  ?= $(shell SOURCE=$(pwd) perl -MCwd=abs_path -MFile::Basename=basename -e '$$m=basename(abs_path($$ENV{SOURCE})); $$m =~s/\-/::/g; print $$m')
 
@@ -44,7 +44,7 @@ MIN_PERL_VERSION ?= 5.010
 SCAN ?= ON
 
 define find-files
-$(1) := $(patsubst %.in,%,$(shell find $(2) -type f -name "$(3)"))
+$(1) := $(patsubst %.in,%,$(shell test -d "$(2)" && find $(2) -type f -name "$(3)"))
 endef
 
 $(eval $(call find-files,PERL_MODULES,lib,*.pm.in))
@@ -114,7 +114,7 @@ $(MODULE_PATH).in: | module.pm.tmpl
 	$(NO_ECHO)mkdir -p $$(dirname $@); \
 	test -e $@ || sed -e 's/[@]MODULE_NAME[@]/$(MODULE_NAME)/' \
 	    -e 's/[@]GIT_NAME[@]/$(GIT_NAME)/' \
-	    -e 's/[@]GIT_EMAIL[@]/$(GIT_EMAIL)/' < $< > $@
+	    -e 's/[@]GIT_EMAIL[@]/$(GIT_EMAIL)/' < module.pm.tmpl > $@
 
 test.t.tmpl:
 	$(NO_ECHO)template=$$(perl -MFile::ShareDir=dist_file -e 'print dist_file(q{CPAN-Maker-Bootstrapper}, q{$@});' 2>/dev/null || true); \
@@ -326,16 +326,43 @@ clean: ## removes temporary build artifacts
 basedir:
 	$(NO_ECHO)echo $(BASEDIR)
 
+.PHONY: workflow
+workflow:
+	$(NO_ECHO)dist_dir=$$(perl -MFile::ShareDir=dist_dir -e 'print dist_dir(q{CPAN-Maker-Bootstrapper});' 2>/dev/null || true); \
+	if [[ -z "$$dist_dir" ]]; then \
+	  echo >&2 "ERROR: could not determine CPAN::Maker::Bootstrapper share directory"; \
+	  exit 1; \
+	fi; \
+	pwd=$$(pwd); \
+	cp $$dist_dir/builder $$pwd; \
+	chmod +x $$pwd/builder; \
+	build_requires="$$(mktemp)"; trap 'rm -f $$build_requires' EXIT; \
+	test -e build-requires || touch build-requires; \
+	cp build-requires $$build_requires; \
+	cat $$dist_dir/build-requires >>$$build_requires; \
+	sort -u $$build_requires > build-requires; \
+	mkdir -p $$pwd/.github/workflows; \
+	project_name="$(PROJECT_NAME)"; \
+	project_name="$${project_name,,}"; \
+	sed -e 's/CPAN::Maker::Bootstrapper/$(PROJECT_NAME)/' \
+	    -e "s/cpan-maker-bootstrapper/$$project_name/" $$dist_dir/build.yml > $$pwd/.github/workflows/build.yml; \
+	echo "** Installed build-requires, builder, .github/workflows/build.yml"; \
+	echo "** Add to your repo:"; \
+	echo "git add build-requires builder .github/workflows/build.yml"
+
 DOCKER_BUILD_IMAGE ?= debian:trixie
 BRANCH             ?= $(shell git branch --show-current)
-BUILDER            ?= /build-github
-BUILD_LOG          ?= build-ci.log
+BUILDER            ?= builder
+BUILD_LOG          ?= $(shell echo "build-$$(date +'%Y%m%d%H%M%S').log")
+INSTALLER          ?= cpm
 
 .PHONY: build-ci
 build-ci:
 	test -n "$(DOCKER)" || (echo "docker unavailable: install docker or set DOCKER" && exit 1); \
+	test -x "$$(pwd)/$(BUILDER)" || (echo "no builder. set BUILDER or run make workflow to install builder" && exit 1); \
 	repo_url="https://github.com/$(GITHUB_USER)/$(PROJECT_NAME).git"; \
 	$(DOCKER) run --rm -v "$$(pwd)/$(BUILDER):/builder:ro" \
 	  -e GITHUB_REF_NAME=$(BRANCH) \
+	  -e INSTALLER=$(INSTALLER) \
 	  $(DOCKER_BUILD_IMAGE) \
 	  /bin/bash /builder "$$repo_url" 2>&1 | tee $(BUILD_LOG)

@@ -37,7 +37,7 @@ update:
 
 .PHONY: update-available
 update-available:
-	@if [[ -n "$(BOOTSTRAPPER_VERSION)" ]]; then \
+	@if [[ -n "$(BOOTSTRAPPER_VERSION)" && "$(PROJECT_NAME)" != "CPAN-Maker-Bootstrapper" ]]; then \
 	  dist=$$(cpanm --info -l /dev/null 2>/dev/null CPAN::Maker::Bootstrapper || true); \
 	  if [[ "$$dist" =~ -([0-9.]+)\.tar\.gz$$ ]]; then \
 	    version="$${BASH_REMATCH[1]}"; \
