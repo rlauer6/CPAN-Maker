@@ -1,3 +1,12 @@
+Tue May  5 13:29:52 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[1.9.1]:
+	* VERSION: bump
+	* Makefile: updated from CPAN::Maker::Bootstrap
+	* lib/CPAN/Maker.pm.in
+	- remove JSON::Validator from use list
+	* requires: remove JSON::Validator
+
 Fri May  1 17:29:22 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[1.9.0]: CPAN::Maker::Bootstrapper

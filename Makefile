@@ -44,7 +44,7 @@ MIN_PERL_VERSION ?= 5.010
 SCAN ?= ON
 
 define find-files
-$(1) := $(patsubst %.in,%,$(shell test -d "$(2)" && find $(2) -type f -name "$(3)"))
+$(1) := $(patsubst %.in,%,$(shell for d in $(2); do test -d "$$d" && find $$d -type f -name "$(3)"; done))
 endef
 
 $(eval $(call find-files,PERL_MODULES,lib,*.pm.in))
@@ -166,10 +166,12 @@ define scan-deps
 	if [[ -n "$$min_perl_version" ]]; then \
 	  min_perl_version="-m $$min_perl_version"; \
 	fi; \
-	for a in $$(find $(2) -name "$(3)"); do \
-	  perl -ne 'print "$$1\n" if /^package +(.*?);/' $$a >> $$packages; \
-	  echo >&2 "Scanning...$$a"; \
-	  $(SCANDEPS) -r $$min_perl_version --no-core $$a | awk '{printf "%s %s\n", $$1,$$2}' >> $$dep_requires; \
+	for d in $(2); do \
+	  for a in $$(find $$d -name "$(3)"); do \
+	    perl -ne 'print "$$1\n" if /^package +(.*?);/' $$a >> $$packages; \
+	    echo >&2 "Scanning...$$a"; \
+	    $(SCANDEPS) -r $$min_perl_version --no-core $$a | awk '{printf "%s %s\n", $$1,$$2}' >> $$dep_requires; \
+	  done; \
 	done; \
 	if test -s "$$dep_requires"; then \
 	  sort -u $$dep_requires > $(1).tmp; \
@@ -358,11 +360,24 @@ INSTALLER          ?= cpm
 
 .PHONY: build-ci
 build-ci:
-	test -n "$(DOCKER)" || (echo "docker unavailable: install docker or set DOCKER" && exit 1); \
+	@test -n "$(DOCKER)" || (echo "docker unavailable: install docker or set DOCKER" && exit 1); \
 	test -x "$$(pwd)/$(BUILDER)" || (echo "no builder. set BUILDER or run make workflow to install builder" && exit 1); \
 	repo_url="https://github.com/$(GITHUB_USER)/$(PROJECT_NAME).git"; \
+	start_time=$$(date +%s); \
 	$(DOCKER) run --rm -v "$$(pwd)/$(BUILDER):/builder:ro" \
 	  -e GITHUB_REF_NAME=$(BRANCH) \
 	  -e INSTALLER=$(INSTALLER) \
 	  $(DOCKER_BUILD_IMAGE) \
-	  /bin/bash /builder "$$repo_url" 2>&1 | tee $(BUILD_LOG)
+	  /bin/bash /builder "$$repo_url" 2>&1 | tee $(BUILD_LOG); \
+	end_time=$$(date +%s); \
+	total_time=$$(($$end_time - $$start_time)); \
+	echo "Build time: $$(date -u -d @$$total_time +%T)" >> $(BUILD_LOG); \
+	ln -sf $(BUILD_LOG) build.log; \
+	echo "See build.log"
+
+GSOURCE_FILES = $(SOURCE_FILES:.in=)
+
+test: $(GSOURCE_FILES) ## run unit tests
+	prove -I lib -v t/
+
+check: $(GSOURCE_FILES) ## syntax check and create source from .in file
