@@ -1,9 +1,10 @@
-requires "JSON::Validator", "5.15";
+requires "Module::CPANfile", "";
 requires "CLI::Simple", "2.0.0";
 requires "CLI::Simple::Constants", "2.0.0";
 requires "CLI::Simple::Utils", "2.0.0";
 requires "File::Process", "1.0.0";
 requires "File::ShareDir", "1.118";
+requires "File::ShareDir::Install", "";
 requires "JSON", "4.10";
 requires "Log::Log4perl::Level", "0";
 requires "Readonly", "2.05";

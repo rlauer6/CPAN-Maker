@@ -44,7 +44,7 @@ MIN_PERL_VERSION ?= 5.010
 SCAN ?= ON
 
 define find-files
-$(1) := $(patsubst %.in,%,$(shell test -d "$(2)" && find $(2) -type f -name "$(3)"))
+$(1) := $(patsubst %.in,%,$(shell for d in $(2); do test -d "$$d" && find $$d -type f -name "$(3)"; done))
 endef
 
 $(eval $(call find-files,PERL_MODULES,lib,*.pm.in))
@@ -166,10 +166,12 @@ define scan-deps
 	if [[ -n "$$min_perl_version" ]]; then \
 	  min_perl_version="-m $$min_perl_version"; \
 	fi; \
-	for a in $$(find $(2) -name "$(3)"); do \
-	  perl -ne 'print "$$1\n" if /^package +(.*?);/' $$a >> $$packages; \
-	  echo >&2 "Scanning...$$a"; \
-	  $(SCANDEPS) -r $$min_perl_version --no-core $$a | awk '{printf "%s %s\n", $$1,$$2}' >> $$dep_requires; \
+	for d in $(2); do \
+	  for a in $$(find $$d -name "$(3)"); do \
+	    perl -ne 'print "$$1\n" if /^package +(.*?);/' $$a >> $$packages; \
+	    echo >&2 "Scanning...$$a"; \
+	    $(SCANDEPS) -r $$min_perl_version --no-core $$a | awk '{printf "%s %s\n", $$1,$$2}' >> $$dep_requires; \
+	  done; \
 	done; \
 	if test -s "$$dep_requires"; then \
 	  sort -u $$dep_requires > $(1).tmp; \

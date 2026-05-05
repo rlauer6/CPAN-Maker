@@ -1,12 +1,13 @@
-+JSON::Validator 5.15
 CLI::Simple 2.0.0
 CLI::Simple::Constants 2.0.0
 CLI::Simple::Utils 2.0.0
 File::Process 1.0.0
 File::ShareDir 1.118
+File::ShareDir::Install
 JSON 4.10
 Log::Log4perl::Level 0
 Readonly 2.05
 Role::Tiny 2.002004
 Role::Tiny::With 2.002004
 YAML::Tiny 0
++Module::CPANfile
