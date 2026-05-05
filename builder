@@ -17,7 +17,7 @@
 #
 ########################################################################
 
-INSTALLER="${INSTALLER:-cpm install -g}"
+INSTALLER="${INSTALLER:-cpm install -v -g}"
 
 ########################################################################
 function install_deps {
@@ -87,7 +87,7 @@ apt-get update && apt-get install -y \
 if [[ "$INSTALLER" =~ cpm ]]; then
     curl -fsSL https://raw.githubusercontent.com/skaji/cpm/main/cpm | perl - install -g App::cpm
     if [[ "$INSTALLER" = "cpm" ]]; then
-        INSTALLER="$INSTALLER install -g"
+        INSTALLER="$INSTALLER install -g -v"
     fi
 elif [[ $INSTALLER =~ cpanm ]]; then
     curl -L https://cpanmin.us | perl - App::cpanminus

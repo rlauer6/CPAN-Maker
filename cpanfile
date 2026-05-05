@@ -1,4 +1,3 @@
-requires "JSON::Validator", "5.15";
 requires "CLI::Simple", "2.0.0";
 requires "CLI::Simple::Constants", "2.0.0";
 requires "CLI::Simple::Utils", "2.0.0";
