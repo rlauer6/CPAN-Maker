@@ -1109,8 +1109,8 @@ sub _generate_man_links {
 
       $content .= <<"POSTAMBLE";
 install ::
-\t-\$(NOECHO) ln -sf \$(DESTINSTALLMAN3DIR)/$module.3pm \$(DESTINSTALLMAN3DIR)/$alias.3pm; \
-\t\$(NOECHO) echo \$(DESTINSTALLMAN3DIR)/$alias.3pm >> \$(DESTINSTALLSITEARCH)/auto/\$(FULLEXT)/.packlist
+\t-\$(NOECHO) ln -sf \$(INSTALLMAN3DIR)/$module.3pm \$(DESTINSTALLMAN3DIR)/$alias.3pm; \
+\t\$(NOECHO) echo \$(INSTALLMAN3DIR)/$alias.3pm >> \$(DESTINSTALLSITEARCH)/auto/\$(FULLEXT)/.packlist
 POSTAMBLE
     }
   }
