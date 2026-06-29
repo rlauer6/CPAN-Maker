@@ -18,6 +18,8 @@ extra-files:
   - share:
       - README.md
       - buildspec-schema.json
+man-links:
+  - cpan-maker: CPAN::Maker
 resources:
   bugtracker:
     mailto: rclauer@gmail.com
