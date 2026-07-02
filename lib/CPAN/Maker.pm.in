@@ -25,7 +25,7 @@ use IPC::Open3;
 use Symbol qw(gensym);
 use File::ShareDir qw(dist_dir dist_file);
 use JSON qw( encode_json decode_json );
-use List::Util qw( pairs );
+use List::Util qw( pairs uniq );
 use Log::Log4perl::Level;
 use Scalar::Util qw( reftype );
 use YAML::Tiny qw(Load Dump LoadFile);
@@ -120,6 +120,88 @@ sub cmd_version {
   my ($self) = @_;
 
   print $PROGRAM_NAME . ' v' . $VERSION . $NL;
+
+  return $SUCCESS;
+}
+
+########################################################################
+sub cmd_create_cpanfile {
+########################################################################
+  my ($self) = @_;
+
+  my @file_list = $self->get_args;
+
+  die "ERROR: usage cpan-maker create-cpanfile file1 file2 ...\n"
+    if !@file_list;
+
+  my @requires;
+
+  foreach (@file_list) {
+    push @requires, split /\n/xsm, slurp($_);
+  }
+
+  my @filtered_requires;
+
+  foreach (@requires) {
+    next if /^[#]/xsm;
+    s/^[+]//xsm;
+    push @filtered_requires, $_;
+  }
+
+  @requires = uniq sort @filtered_requires;
+
+  my $fh = choose {
+    my $outfile = $self->get_outfile;
+
+    return \*STDOUT
+      if $outfile eq q{-};
+
+    $outfile //= 'cpanfile';
+
+    $self->set_outfile($outfile);
+
+    open my $fh, '>', $outfile
+      or die "ERROR: could not open cpanfile for writing: $OS_ERROR\n";
+
+    return $fh;
+  };
+
+  foreach (@requires) {
+    my (@module) = split /\s+/xsm, $_;
+
+    my $req = {
+      module  => shift @module,
+      version => shift @module,
+    };
+
+    if (@module) {
+      foreach my $e (@module) {
+        die "ERROR: invalid entry only dist, url or mirror permitted after version\n"
+          if $e !~ /^(?:dist=|url=|mirror=)/xsm;
+
+        my (@args) = split /=/, $e;
+        $req->{ $args[0] } = $args[1];
+      }
+    }
+
+    if ( keys %{$req} == 2 ) {
+      print {$fh} sprintf qq{requires "%s", "%s";\n}, @{$req}{qw(module version)};
+    }
+    else {
+      my @extra;
+      foreach ( keys %{$req} ) {
+        next if /^(?:module|version)/xsm;
+        push @extra, sprintf '  %s => "%s"', $_, $req->{$_};
+      }
+
+      print {$fh} sprintf qq{requires "%s", "%s"}, @{$req}{qw(module version)};
+      print {$fh} sprintf ",\n%s", join ",\n", @extra;
+      print {$fh} ";\n";
+    }
+  }
+
+  close $fh
+    if $self->get_outfile ne '-';
 
   return $SUCCESS;
 }
@@ -1559,6 +1641,7 @@ sub main {
     module-path=s
     module|m=s
     overwrite
+    outfile|o=s
     pager|P!
     pl-files=s
     postamble=s
@@ -1592,11 +1675,12 @@ sub main {
   };
 
   my %commands = (
-    default          => \&cmd_build,
-    build            => \&cmd_build,
-    version          => \&cmd_version,
-    'write-makefile' => \&cmd_makefile,
-    'validate'       => \&cmd_validate,
+    'build'           => \&cmd_build,
+    'create-cpanfile' => \&cmd_create_cpanfile,
+    'default'         => \&cmd_build,
+    'validate'        => \&cmd_validate,
+    'version'         => \&cmd_version,
+    'write-makefile'  => \&cmd_makefile,
   );
 
   my $cli = CPAN::Maker->new(
@@ -1624,6 +1708,7 @@ CPAN::Maker - create a CPAN distribution
 
  cpan-maker -b buildspec.yml
  cpan-maker build -b buildspec.yml
+ cpan-maker create-cpanfile file1 file2 ...
 
 =head2 Options
 
@@ -1644,6 +1729,7 @@ CPAN::Maker - create a CPAN distribution
  -M, --min-perl-version      minimum perl version to consider core (default: 5.010)
      --no-cleanup            preserve temp dir after build
      --no-require-versions   omit version numbers from dependencies
+ -o, --outfile               output file for create-cpanfile (default: cpanfile, - for STDOUT)
  -P, --pager, --no-pager     use a pager for help (default: use pager)
      --pl-files              path to the PL_FILES list (see perldoc ExtUtils::MakeMaker)
      --postamble             name of the file containing the postamble instructions
@@ -1693,6 +1779,29 @@ line. Useful for inspecting the generated C<Makefile.PL> without
 running a full build.
 
   cpan-maker write-makefile -m Foo::Bar -r requires -a 'A. U. Thor <au@example.com>'
+
+=item * create-cpanfile
+
+Generate a F<cpanfile> from one or more dependency list files. Each file
+contains one dependency per line in the format:
+
+  Module::Name version [dist=name] [url=URL] [mirror=URL]
+
+Lines beginning with C<#> are treated as comments and ignored. A leading
+C<+> on a module name (as used in C<CPAN::Maker::Bootstrapper> dependency
+files to pin a version) is stripped before processing. Duplicate entries
+are removed and the output is sorted alphabetically.
+
+By default the result is written to F<cpanfile> in the current directory.
+Use C<-o -> to write to STDOUT instead.
+
+  cpan-maker create-cpanfile requires test-requires
+  cpan-maker create-cpanfile -o - requires > cpanfile
+  cpan-maker create-cpanfile -o my-cpanfile requires test-requires
+
+The optional C<dist=>, C<url=>, and C<mirror=> qualifiers map to the
+corresponding C<cpanfile> source directives, allowing you to pin
+dependencies to a specific distribution, URL, or mirror.
 
 =item * version
 
@@ -1803,6 +1912,11 @@ Default: C<5.010>.
 
 Preserve the temporary build directory after the build. Equivalent to
 C<--no-cleanup>; the directory path is logged at C<debug> level.
+
+=item -o, --outfile
+
+Output file path for the C<create-cpanfile> command. Defaults to
+F<cpanfile> in the current directory. Pass C<-> to write to STDOUT.
 
 =item -P, --pager, --no-pager
 
@@ -2097,7 +2211,7 @@ format.
 
 =head1 VERSION
 
-This documentation refers to version @PACKAGE_VERSION@
+This documentation refers to version 2.0.1
 
 =head1 AUTHOR
 

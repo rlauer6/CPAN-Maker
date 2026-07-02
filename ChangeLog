@@ -1,3 +1,16 @@
+Thu Jul  2 09:10:51 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[2.0.1]:
+	* release-notes.md: updated
+	* release-notes/release-notes-2.0.1.md: new
+	* VERSION: bump
+	* lib/CPAN/Maker.pm.in: modified
+	- pod updates
+	(cmd_create_cpanfile): new
+	(main)
+	- + --outfile option
+	- add cmd_create_cpanfile
+
 Mon Jun 29 17:05:33 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[2.0.0]:
