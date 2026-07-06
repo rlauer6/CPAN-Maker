@@ -1,3 +1,17 @@
+Mon Jul  6 05:42:46 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[2.0.2]:
+	* release-notes.md: updated
+	* release-notes/release-notes-2.0.2.md: new
+	* VERSION: bump
+	* lib/CPAN/Maker.pm.in
+	(_run_cmd)
+	- merge STDOUT/STDERR to avoid deadlock on large builds
+	* .includes/perl.mk: updated by CPAN::Bootstrap::Maker
+	* .includes/release-notes.md: likewise
+	* Makefile: likewise
+	* builder: likewise
+
 Thu Jul  2 09:10:51 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[2.0.1]:
