@@ -38,7 +38,7 @@ with 'CPAN::Maker::Role::FileUtils';
 
 our $VERSION = '@PACKAGE_VERSION@';
 
-__PACKAGE__->use_log4perl( level => 'info' );
+__PACKAGE__->use_log4perl( level => 'info', color => $FALSE );
 
 use parent qw(CLI::Simple);
 
@@ -1650,6 +1650,7 @@ sub main {
     buildspec|b=s
     cleanup!
     core-modules!
+    color!
     create-buildspec=s
     debug|D
     dryrun

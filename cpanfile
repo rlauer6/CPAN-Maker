@@ -1,4 +1,3 @@
-requires "Module::CPANfile", "0";
 requires "CLI::Simple", "2.0.0";
 requires "CLI::Simple::Constants", "2.0.0";
 requires "CLI::Simple::Utils", "2.0.0";
@@ -6,6 +5,7 @@ requires "File::Process", "1.0.0";
 requires "File::ShareDir", "1.118";
 requires "JSON", "4.10";
 requires "Log::Log4perl::Level", "0";
+requires "Module::CPANfile", "0";
 requires "Readonly", "2.05";
 requires "Role::Tiny", "2.002004";
 requires "Role::Tiny::With", "2.002004";

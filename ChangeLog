@@ -1,3 +1,18 @@
+Fri Jul 17 13:40:08 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[2.0.3]:
+	* release-notes.md: updated
+	* release-notes/release-notes-2.0.3.md: new
+	* VERSION: bump
+	* .includes/git.mk: updated by CPAN::Maker::Bootstrapper
+	* .includes/perl.mk: likewise
+	* .includes/update.mk: likewise
+	* Makefile: likewise
+	* cpanfile: modified
+	* lib/CPAN/Maker.pm.in
+	- default color to off
+	- add --color option
+
 Mon Jul  6 05:42:46 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[2.0.2]:
