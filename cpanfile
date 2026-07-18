@@ -1,6 +1,6 @@
-requires "CLI::Simple", "2.0.0";
-requires "CLI::Simple::Constants", "2.0.0";
-requires "CLI::Simple::Utils", "2.0.0";
+requires "CLI::Simple", "2.1.0";
+requires "CLI::Simple::Constants", "2.1.0";
+requires "CLI::Simple::Utils", "2.1.0";
 requires "File::Process", "1.0.0";
 requires "File::ShareDir", "1.118";
 requires "JSON", "4.10";

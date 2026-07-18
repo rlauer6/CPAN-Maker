@@ -1,3 +1,10 @@
+Sat Jul 18 05:39:34 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[2.0.4]:
+	* requires: bump version of CLI::Simple to 2.1.0
+	* cpanfile: likewise
+	* VERSION: bump
+
 Fri Jul 17 13:40:08 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[2.0.3]:

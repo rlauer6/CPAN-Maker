@@ -1,7 +1,7 @@
 +Module::CPANfile 0
-CLI::Simple 2.0.0
-CLI::Simple::Constants 2.0.0
-CLI::Simple::Utils 2.0.0
+CLI::Simple 2.1.0
+CLI::Simple::Constants 2.1.0
+CLI::Simple::Utils 2.1.0
 File::Process 1.0.0
 File::ShareDir 1.118
 JSON 4.10
