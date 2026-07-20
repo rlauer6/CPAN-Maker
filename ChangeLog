@@ -1,3 +1,16 @@
+Mon Jul 20 17:23:06 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[2.0.5]:
+	* release-notes.md: updated
+	* release-notes/release-notes-2.0.5.md: new
+	* VERSION: bump
+	* .gitignore: *.checked
+	* .includes/perl.mk: updated by CPAN::Maker::Bootstrapper
+	* Makefile: likewise
+	* lib/CPAN/Maker.pm.in
+	(cmd_create_cpanfile): prevent uninitialized warning
+	* deps.mk: new
+
 Sat Jul 18 05:39:34 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[2.0.4]:
