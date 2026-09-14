@@ -3,6 +3,7 @@
     ./lib/CPAN/Maker/Constants.pm \
     ./lib/CPAN/Maker/Role/FileUtils.pm \
     ./lib/CPAN/Maker/Role/ModuleUtils.pm \
+    ./lib/CPAN/Maker/Role/Provides.pm \
     ./lib/CPAN/Maker/Utils.pm
 
 # ./lib/CPAN/Maker/Role/FileUtils.pm.in

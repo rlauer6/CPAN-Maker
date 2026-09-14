@@ -5,7 +5,7 @@ requires "File::Process", "1.0.0";
 requires "File::ShareDir", "1.118";
 requires "File::ShareDir::Install", "0";
 requires "JSON", "4.10";
-requires "Log::Log4perl", "";
+requires "Log::Log4perl", "0";
 requires "Log::Log4perl::Level", "0";
 requires "Module::CPANfile", "0";
 requires "Readonly", "2.05";

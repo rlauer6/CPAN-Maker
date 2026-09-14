@@ -1,4 +1,5 @@
 +File::ShareDir::Install 0
++Log::Log4perl 0
 +Module::CPANfile 0
 CLI::Simple 2.1.2
 CLI::Simple::Constants 2.1.2
@@ -6,7 +7,6 @@ CLI::Simple::Utils 2.1.2
 File::Process 1.0.0
 File::ShareDir 1.118
 JSON 4.10
-+Log::Log4perl
 Log::Log4perl::Level 0
 Readonly 2.05
 Role::Tiny 2.002004
