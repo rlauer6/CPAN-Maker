@@ -1,3 +1,20 @@
+Sat Sep 26 05:09:37 2026  Rob Lauer  <rclauer@gmail.com>
+
+	[2.0.11]:
+	* release-notes.md: updated
+	* release-notes/release-notes-2.0.11.md: new
+	* .gitignore: updated by CPAN::Maker::Bootstrapper
+	* .includes/local.mk: likewise
+	* .includes/perl.mk: likewise
+	* Makefile: likewise
+	* VERSION: bump
+	* lib/CPAN/Maker.pm.in
+	(cmd_build)
+	- avoid updating provides in project root when it has not changed
+	* lib/CPAN/Maker/Role/Provides.pm.in
+	(_write_provides)
+	- don't croak if no version, set version to undef
+
 Mon Sep 14 12:15:17 2026  Rob Lauer  <rclauer@gmail.com>
 
 	[2.0.10]:

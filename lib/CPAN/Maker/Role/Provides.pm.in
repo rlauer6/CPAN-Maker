@@ -215,8 +215,9 @@ sub _write_provides {
 
     my ( $module, $version ) = split /\s+/xsm, $provide, 2;
 
-    croak sprintf "provided module '%s' has no version\n", $module
-      if !defined $version || $version eq q{};
+    if ( !defined $version || $version eq q{} ) {
+      $version = 'undef';
+    }
 
     print {$fh} sprintf "%s %s\n", $module, $version;
   }

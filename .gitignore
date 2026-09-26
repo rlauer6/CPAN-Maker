@@ -27,3 +27,12 @@ bin/cpan-maker
 buildspec.yml.current
 extra-files.mk
 local/**
+**/*.bak
+**/*.log
+**/*.pod
+**/*.tmp
+**/.\#*
+**/\#*
+cpanfile.*
+test-requires.scan
+test-requires.cpanfile

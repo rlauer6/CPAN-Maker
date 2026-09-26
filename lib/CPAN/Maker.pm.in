@@ -285,23 +285,17 @@ sub cmd_build {
 
     $self->get_logger->info("writing $makefile_pl");
 
-    # write provides into cwd ($project_root) before write_makefile reads it;
-    # it will be copied to $builddir after chdir
-    if ( $provides_file && -e $provides_file ) {
-      cp( $provides_file, 'provides' )
-        or die "ERROR: could not copy provides file: $OS_ERROR\n";
-    }
-
-    $self->write_makefile( dest => $makefile_pl );
+    $self->write_makefile(
+      dest          => $makefile_pl,
+      provides_file => $provides_file,
+    );
   }
 
   chdir $builddir
     or die "ERROR: could not chdir to $builddir: $OS_ERROR\n";
 
-  # move provides into builddir (write_makefile may have already used it;
-  # it must be in builddir for make manifest to find it, but excluded via MANIFEST.SKIP)
-  if ( -e "$project_root/provides" ) {
-    cp( "$project_root/provides", "$builddir/provides" )
+  if ( $provides_file && -e $provides_file ) {
+    cp( $provides_file, "$builddir/provides" )
       or die "ERROR: could not copy provides to builddir: $OS_ERROR\n";
   }
 
@@ -699,8 +693,13 @@ sub write_makefile {
 
   my %provides;
 
-  if ( -e 'provides' ) {
-    %provides = $self->get_provides( file => 'provides', work_dir => $self->get_work_dir );
+  my $provides_file = $params{provides_file} // 'provides';
+
+  if ( -e $provides_file ) {
+    %provides = $self->get_provides(
+      file     => $provides_file,
+      work_dir => $self->get_work_dir,
+    );
     $buildspec{provides} = [
       map { sprintf '%s %s', $_, $provides{$_}->{version} }
       sort keys %provides
