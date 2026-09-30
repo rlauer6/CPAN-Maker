@@ -1,0 +1,7 @@
+- Produce release notes in markdown format for this Perl CPAN distribution release
+- wrap text at 72 columns
+- summarize important changes rather than repeat the ChangeLog details
+- note if there are build system changes but do not detail
+- review the ChangeLog and note any inconsistencies or omissions
+- provide a single sentence commit message describing the overall
+  theme of the release

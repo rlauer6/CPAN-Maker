@@ -1,15 +1,11 @@
 requires "CLI::Simple", "2.1.2";
-requires "CLI::Simple::Constants", "2.1.2";
-requires "CLI::Simple::Utils", "2.1.2";
 requires "File::Process", "1.0.0";
 requires "File::ShareDir", "1.118";
 requires "File::ShareDir::Install", "0";
 requires "JSON", "4.10";
 requires "Log::Log4perl", "0";
-requires "Log::Log4perl::Level", "0";
 requires "Module::CPANfile", "0";
 requires "Readonly", "2.05";
 requires "Role::Tiny", "2.002004";
-requires "Role::Tiny::With", "2.002004";
 requires "YAML::Tiny", "0";
 recommends "JSON::Validator", "5.15";
