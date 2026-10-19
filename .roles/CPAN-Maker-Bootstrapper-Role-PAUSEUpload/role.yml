@@ -1,0 +1,4 @@
+version: 1.0.0
+distribution: CPAN-Maker-Bootstrapper-Role-PAUSEUpload
+roles:
+  publish-to-cpan: CPAN::Maker::Bootstrapper::Role::PAUSEUpload

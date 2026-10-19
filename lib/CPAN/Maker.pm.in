@@ -1402,6 +1402,16 @@ sub stage_distribution {
       file => $provides_file,
     );
 
+    # Explicit provides are additional package declarations, not replacements
+    # for the staged module inventory. Preserve them for write_makefile().
+    if ( my $declared = $buildspec->{provides} ) {
+      open my $out, '>>', $provides_file
+        or croak "could not append to '$provides_file': $OS_ERROR";
+      $self->_write_provides( $out, $declared );
+      close $out
+        or croak "could not close '$provides_file': $OS_ERROR";
+    }
+
     $params{provides_file_ref} = \$provides_file;
   }
 
